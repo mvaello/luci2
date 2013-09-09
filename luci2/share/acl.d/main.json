@@ -1,0 +1,201 @@
+{
+	"core": {
+		"description": "Core functions for LuCI",
+		"read": {
+			"ubus": {
+				"luci2.ui": [
+					"*"
+				],
+				"session": [
+					"access"
+				],
+				"uci": [
+					"*"
+				]
+			}
+		}
+	},
+
+	"status": {
+		"description": "Status information display",
+		"read": {
+			"ubus": {
+				"iwinfo": [
+					"devices",
+					"info",
+					"assoclist"
+				],
+				"system": [
+					"info",
+					"board"
+				],
+				"network.interface": [
+					"status"
+				],
+				"luci2.network": [
+					"conntrack_count",
+					"dhcp_leases",
+					"dhcp6_leases",
+					"arp_table",
+					"routes",
+					"routes6"
+				],
+				"luci2.system": [
+					"diskfree",
+					"syslog",
+					"dmesg",
+					"process_list"
+				]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci2.system": [
+					"process_signal"
+				]
+			}
+		}
+	},
+
+	"system": {
+		"description": "General system settings",
+		"read": {
+			"ubus": {
+				"system": [
+					"info",
+					"board"
+				],
+				"luci2.system": [
+					"init_list"
+				]
+			},
+			"uci": [
+				"luci"
+			]
+		},
+		"write": {
+			"ubus": {
+				"luci2.system": [
+					"init_action"
+				]
+			},
+			"uci": [
+				"luci"
+			]
+		}
+	},
+
+	"admin": {
+		"description": "Authentication and SSH settings",
+		"read": {
+			"ubus": {
+				"luci2.system": [
+					"sshkeys_get"
+				]
+			},
+			"uci": [
+				"dropbear"
+			]
+		},
+		"write": {
+			"ubus": {
+				"luci2.system": [
+					"sshkeys_set",
+					"password_set"
+				]
+			},
+			"uci": [
+				"dropbear"
+			]
+		}
+	},
+
+	"software": {
+		"description": "Package management",
+		"read": {
+			"ubus": {
+				"system": [
+					"info",
+					"board"
+				],
+				"luci2.opkg": [
+					"list",
+					"list_installed",
+					"find",
+					"config_get"
+				]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci2.opkg": [
+					"install",
+					"remove",
+					"update",
+					"config_set"
+				]
+			}
+		}
+	},
+
+	"startup": {
+		"description": "System boot settings",
+		"read": {
+			"ubus": {
+				"luci2.system": [
+					"init_list",
+					"rclocal_get"
+				]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci2.system": [
+					"init_action",
+					"rclocal_set"
+				]
+			}
+		}
+	},
+
+	"cron": {
+		"description": "Crontab management",
+		"read": {
+			"ubus": {
+				"luci2.system": [
+					"crontab_get"
+				]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci2.system": [
+					"crontab_set"
+				]
+			}
+		}
+	},
+
+	"leds": {
+		"description": "Hardware LED configuration",
+		"read": {
+			"ubus": {
+				"network.device": [
+					"status"
+				],
+				"luci2.system": [
+					"led_list",
+					"usb_list"
+				]
+			},
+			"uci": [
+				"system"
+			]
+		},
+		"write": {
+			"uci": [
+				"system"
+			]
+		}
+	}
+}

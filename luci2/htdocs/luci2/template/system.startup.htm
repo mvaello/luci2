@@ -1,0 +1,18 @@
+<fieldset class="cbi-map" id="maps">
+	<div>
+		<legend><%:Local Startup%></legend>
+		<div class="cbi-map-descr"><%:This is the content of /etc/rc.local. Insert your own commands here (in front of 'exit 0') to execute them at the end of the boot process.%></div>
+	</div>
+	<div>
+		<textarea id="rc_local" class="cbi-input-textarea" style="width:100%" rows="10"></textarea>
+		<div class="cbi-page-actions">
+			<input class="cbi-button cbi-button-save" type="button" value="<%:Save%>" />
+		</div>
+	</div>
+
+	<div>
+		<legend><%:Initscripts%></legend>
+		<div class="cbi-map-descr"><%:You can enable or disable installed init scripts here. Changes will applied after a device reboot. Warning: If you disable essential init scripts like "network", your device might become inaccessible!%></div>
+	</div>
+	<div id="init_table"></div>
+</fieldset>

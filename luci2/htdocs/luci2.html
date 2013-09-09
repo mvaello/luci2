@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <title>LuCI2</title>
+
+        <link rel="stylesheet" href="/luci2/bootstrap/cascade.css">
+
+        <!--[if lt IE 9]><script src="/luci2/bootstrap/html5.js"></script><![endif]-->
+
+        <script type="text/javascript" src="/luci2/jquery-1.9.1.js"></script>
+        <script type="text/javascript" src="/luci2/jquery-ui-1.10.3.js"></script>
+        <script type="text/javascript" src="/luci2/luci2.js"></script>
+
+        <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+
+        <script type="text/javascript">
+            $(function() {
+                var L = new LuCI2();
+
+                L.ui.login().then(function() {
+                    L.ui.init();
+                });
+            });
+        </script>
+    </head>
+    <body>
+        <header>
+            <div class="fill">
+                <div class="container">
+                    <a class="brand" href="#">&nbsp;</a>
+                    <div id="mainmenu"></div>
+    <!--
+                    <div class="pull-right">
+                        <span id="xhr_poll_status" style="display:none" onclick="XHR.running() ? XHR.halt() : XHR.run()">
+                            <span class="label success" id="xhr_poll_status_on">Auto Refresh on</span>
+                            <span class="label" id="xhr_poll_status_off" style="display:none">Auto Refresh off</span>
+                        </span>
+                    </div>
+    -->
+                </div>
+            </div>
+        </header>
+
+        <div id="viewmenu"></div>
+
+        <div id="maincontent" class="container">
+
+        </div>
+<!--
+        <footer>
+            <a href="http://luci.subsignal.org/">Powered by LuCI Trunk (git-8b6d8db)</a>
+            OpenWrt Barrier Breaker r37529
+        </footer>
+-->
+    </body>
+</html>
