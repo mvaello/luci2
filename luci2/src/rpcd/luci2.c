@@ -1998,7 +1998,7 @@ menu_access(struct blob_attr *sid, struct blob_attr *acls, struct blob_buf *e)
 
 	blobmsg_for_each_attr(acl, acls, rem)
 	{
-		if (!ops->session_access(blobmsg_data(sid), "luci-ui",
+		if (!ops->session_access(blobmsg_data(sid), "access-group",
 		                         blobmsg_data(acl), "read"))
 		{
 			rv = false;
@@ -2006,7 +2006,7 @@ menu_access(struct blob_attr *sid, struct blob_attr *acls, struct blob_buf *e)
 		}
 
 		blobmsg_add_u8(e, blobmsg_data(acl),
-		               ops->session_access(blobmsg_data(sid), "luci-ui",
+		               ops->session_access(blobmsg_data(sid), "access-group",
 		                                   blobmsg_data(acl), "write"));
 	}
 
