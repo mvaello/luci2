@@ -433,7 +433,8 @@ function LuCI2()
 	};
 
 	this.globals = {
-		resource: '/luci2'
+		resource: '/luci2',
+		sid:      '00000000000000000000000000000000'
 	};
 
 	this.rpc = {
@@ -1760,24 +1761,24 @@ function LuCI2()
 						.text(_luci2.tr('Enter your username and password above, then click "%s" to proceed.').format(_luci2.tr('Ok'))))
 			);
 
-			var response = _luci2._login_response_cb || (
-				_luci2._login_response_cb = function(data) {
-					if (typeof(data) == 'object' && typeof(data.sessionid) == 'string')
+			var response_cb = _luci2._login_response_cb || (
+				_luci2._login_response_cb = function(response) {
+					if (!response.sid)
 					{
-						_luci2.globals.sid = data.sessionid;
+						_luci2.ui.login(true);
+					}
+					else
+					{
+						_luci2.globals.sid = response.sid;
 						_luci2.setHash('id', _luci2.globals.sid);
 
 						_luci2.ui.dialog(false);
 						_luci2._login_deferred.resolve();
 					}
-					else
-					{
-						_luci2.ui.login(true);
-					}
 				}
 			);
 
-			var confirm = _luci2._login_confirm_cb || (
+			var confirm_cb = _luci2._login_confirm_cb || (
 				_luci2._login_confirm_cb = function() {
 					var d = _luci2._login;
 					var u = d.find('[name=username]').val();
@@ -1798,14 +1799,7 @@ function LuCI2()
 						], { style: 'wait' }
 					);
 
-					$.ajax('/cgi-bin/luci-login', {
-						type:        'POST',
-						cache:       false,
-						data:        { username: u, password: p },
-						dataType:    'json',
-						success:     response,
-						error:       response
-					});
+					rcall('session', 'login', { username: u, password: p }, undefined, { }, response_cb);
 				}
 			);
 
@@ -1816,7 +1810,7 @@ function LuCI2()
 
 			_luci2.ui.dialog(_luci2.tr('Authorization Required'), form, {
 				style: 'confirm',
-				confirm: confirm
+				confirm: confirm_cb
 			});
 
 			return _luci2._login_deferred;
