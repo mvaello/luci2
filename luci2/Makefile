@@ -45,7 +45,6 @@ define Package/luci2/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/io/luci2-io $(1)/usr/libexec/
 	$(LN) /usr/libexec/luci2-io $(1)/www/cgi-bin/luci-upload
 	$(LN) /usr/libexec/luci2-io $(1)/www/cgi-bin/luci-backup
-	$(LN) /usr/libexec/luci2-io $(1)/www/cgi-bin/luci-login
 endef
 
 define Package/luci2/postinst

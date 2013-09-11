@@ -16,9 +16,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define _GNU_SOURCE
-#define _XOPEN_SOURCE	700
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -33,11 +30,6 @@
 #include <libubus.h>
 #include <libubox/blobmsg.h>
 
-#ifdef HAVE_SHADOW
-#include <shadow.h>
-#endif
-
-#include "login.h"
 #include "multipart_parser.h"
 
 
@@ -641,71 +633,12 @@ main_backup(int argc, char **argv)
 	}
 }
 
-static int
-main_login(int argc, char **argv)
-{
-	char *hash, *fields[] = { "username", NULL, "password", NULL };
-	const char *sid = NULL;
-
-	if (postdecode(fields, 2))
-	{
-#ifdef HAVE_SHADOW
-		struct spwd *sp = getspnam(fields[1]);
-
-		if (!sp)
-			goto inval;
-
-		/* check whether a password is set */
-		if (sp->sp_pwdp && *sp->sp_pwdp &&
-		    strcmp(sp->sp_pwdp, "!") && strcmp(sp->sp_pwdp, "x"))
-		{
-			hash = crypt(fields[3], sp->sp_pwdp);
-
-			if (strcmp(hash, sp->sp_pwdp))
-				goto inval;
-		}
-#else
-		struct passwd *pw = getpwnam(fields[1]);
-
-		if (!pw)
-			goto inval;
-
-		/* check whether a password is set */
-		if (pw->pw_passwd && *pw->pw_passwd &&
-		    strcmp(pw->pw_passwd, "!") && strcmp(pw->pw_passwd, "x"))
-		{
-			hash = crypt(fields[3], pw->pw_passwd);
-
-			if (strcmp(hash, pw->pw_passwd))
-				goto inval;
-		}
-#endif
-
-		sid = setup_session(fields[1]);
-
-		if (!sid)
-			goto inval;
-
-		printf("Status: 200 OK\r\n");
-		printf("Content-Type: application/json\r\n\r\n{\n");
-		printf("\t\"sessionid\": \"%s\"\n}\n", sid);
-		return 0;
-	}
-
-inval:
-	printf("Status: 200 OK\r\n");
-	printf("Content-Type: application/json\r\n\r\n{}\n");
-	return 1;
-}
-
 int main(int argc, char **argv)
 {
 	if (strstr(argv[0], "luci-upload"))
 		return main_upload(argc, argv);
 	else if (strstr(argv[0], "luci-backup"))
 		return main_backup(argc, argv);
-	else if (strstr(argv[0], "luci-login"))
-		return main_login(argc, argv);
 
 	return -1;
 }

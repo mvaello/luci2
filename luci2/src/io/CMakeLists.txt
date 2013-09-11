@@ -13,17 +13,7 @@ IF(APPLE)
   LINK_DIRECTORIES(/opt/local/lib)
 ENDIF()
 
-FIND_LIBRARY(LIBS crypt)
-IF(LIBS STREQUAL "LIBS-NOTFOUND")
-  SET(LIBS "")
-ENDIF()
-
-CHECK_FUNCTION_EXISTS(getspnam HAVE_SHADOW)
-IF(HAVE_SHADOW)
-  ADD_DEFINITIONS(-DHAVE_SHADOW)
-ENDIF()
-
-ADD_EXECUTABLE(luci2-io main.c login.c multipart_parser.c)
-TARGET_LINK_LIBRARIES(luci2-io uci ubox ubus blobmsg_json ${LIBS})
+ADD_EXECUTABLE(luci2-io main.c multipart_parser.c)
+TARGET_LINK_LIBRARIES(luci2-io ubox ubus)
 
 INSTALL(TARGETS luci2-io RUNTIME DESTINATION sbin)
