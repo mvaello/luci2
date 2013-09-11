@@ -31,6 +31,7 @@
 #include <signal.h>
 #include <glob.h>
 #include <libubox/blobmsg_json.h>
+#include <libubox/avl-cmp.h>
 #include <libubus.h>
 #include <uci.h>
 
@@ -2087,6 +2088,55 @@ skip:
 }
 
 
+static void
+parse_acl_file(struct blob_buf *acls, const char *path)
+{
+	struct blob_buf acl = { 0 };
+	struct blob_attr *cur;
+	void *c;
+	int rem;
+
+	blob_buf_init(&acl, 0);
+
+	if (blobmsg_add_json_from_file(&acl, path))
+	{
+		c = blobmsg_open_table(acls, NULL);
+
+		blob_for_each_attr(cur, acl.head, rem)
+			blobmsg_add_blob(acls, cur);
+
+		blobmsg_close_table(acls, c);
+	}
+
+	blob_buf_free(&acl);
+}
+
+static int
+rpc_luci2_ui_acls(struct ubus_context *ctx, struct ubus_object *obj,
+                  struct ubus_request_data *req, const char *method,
+                  struct blob_attr *msg)
+{
+	int i;
+	void *c;
+	glob_t gl;
+
+	if (glob(RPC_SESSION_ACL_DIR "/*.json", 0, NULL, &gl))
+		return rpc_errno_status();
+
+	blob_buf_init(&buf, 0);
+	c = blobmsg_open_array(&buf, "acls");
+
+	for (i = 0; i < gl.gl_pathc; i++)
+		parse_acl_file(&buf, gl.gl_pathv[i]);
+
+	globfree(&gl);
+	blobmsg_close_array(&buf, c);
+
+	ubus_send_reply(ctx, req, buf.head);
+	return 0;
+}
+
+
 static int
 rpc_luci2_api_init(const struct rpc_daemon_ops *o, struct ubus_context *ctx)
 {
@@ -2191,7 +2241,8 @@ rpc_luci2_api_init(const struct rpc_daemon_ops *o, struct ubus_context *ctx)
 
 
 	static const struct ubus_method luci2_ui_methods[] = {
-		UBUS_METHOD_NOARG("menu",            rpc_luci2_ui_menu)
+		UBUS_METHOD_NOARG("menu",            rpc_luci2_ui_menu),
+		UBUS_METHOD_NOARG("acls",            rpc_luci2_ui_acls)
 	};
 
 	static struct ubus_object_type luci2_ui_type =
