@@ -37,8 +37,8 @@ endef
 define Package/luci2/install
 	$(INSTALL_DIR) $(1)/www
 	$(CP) ./htdocs/* $(1)/www/
-	$(INSTALL_DIR) $(1)/usr/share/luci2
-	$(CP) ./share/* $(1)/usr/share/luci2/
+	$(INSTALL_DIR) $(1)/usr/share/rpcd
+	$(CP) ./share/* $(1)/usr/share/rpcd/
 	$(INSTALL_DIR) $(1)/usr/lib/rpcd
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/rpcd/luci2.so $(1)/usr/lib/rpcd/
 	$(INSTALL_DIR) $(1)/usr/libexec $(1)/www/cgi-bin
