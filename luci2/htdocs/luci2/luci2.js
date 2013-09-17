@@ -3949,7 +3949,7 @@ function LuCI2()
 			if (!self.interfaces)
 			{
 				self.interfaces = [ ];
-				return _luci2.network.getNetworkStatus(function(ifaces) {
+				return _luci2.network.getNetworkStatus().then(function(ifaces) {
 					self.interfaces = ifaces;
 					self = null;
 				});
@@ -3978,7 +3978,7 @@ function LuCI2()
 				type = 'wifi';
 				desc = _luci2.tr('Wireless Network');
 			}
-			else if (dev.name.indexOf('.') > 0)
+			else if (dev.device.indexOf('.') > 0)
 			{
 				type = 'vlan';
 				desc = _luci2.tr('VLAN interface');
@@ -3986,7 +3986,7 @@ function LuCI2()
 
 			return $('<img />')
 				.attr('src', _luci2.globals.resource + '/icons/' + type + (dev.up ? '' : '_disabled') + '.png')
-				.attr('title', '%s (%s)'.format(desc, dev.name));
+				.attr('title', '%s (%s)'.format(desc, dev.device));
 		},
 
 		widget: function(sid)
@@ -4013,11 +4013,11 @@ function LuCI2()
 					var iface = this.interfaces[i];
 					var badge = $('<span />')
 						.addClass('ifacebadge')
-						.text('%s: '.format(iface.name));
+						.text('%s: '.format(iface['interface']));
 
-					if (iface.subdevices)
-						for (var j = 0; j < iface.subdevices.length; j++)
-							badge.append(this._device_icon(iface.subdevices[j]));
+					if (iface.device && iface.device.subdevices)
+						for (var j = 0; j < iface.device.subdevices.length; j++)
+							badge.append(this._device_icon(iface.device.subdevices[j]));
 					else if (iface.device)
 						badge.append(this._device_icon(iface.device));
 					else
@@ -4028,8 +4028,8 @@ function LuCI2()
 							.append($('<input />')
 								.attr('name', itype + id)
 								.attr('type', itype)
-								.attr('value', iface.name)
-								.prop('checked', !!check[iface.name])
+								.attr('value', iface['interface'])
+								.prop('checked', !!check[iface['interface']])
 								.addClass('cbi-input-' + itype))
 							.append(badge))
 						.appendTo(ul);
