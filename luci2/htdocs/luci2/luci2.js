@@ -1429,7 +1429,7 @@ function LuCI2()
 		startHeartbeat: function()
 		{
 			this._hearbeatInterval = window.setInterval(function() {
-				_luci2.session.isAlive(function(alive) {
+				_luci2.session.isAlive().then(function(alive) {
 					if (!alive)
 					{
 						_luci2.session.stopHeartbeat();
@@ -1443,7 +1443,10 @@ function LuCI2()
 		stopHeartbeat: function()
 		{
 			if (typeof(this._hearbeatInterval) != 'undefined')
+			{
 				window.clearInterval(this._hearbeatInterval);
+				delete this._hearbeatInterval;
+			}
 		}
 	};
 
@@ -1759,6 +1762,7 @@ function LuCI2()
 				_luci2.session.isAlive().then(function(access) {
 					if (access)
 					{
+						_luci2.session.startHeartbeat();
 						_luci2._login_deferred.resolve();
 					}
 					else
@@ -5296,11 +5300,11 @@ function LuCI2()
 							for (var k in this.uci.creates[c][s])
 							{
 								if (k == '.type')
-									r.type = this.uci.creates[i][k];
+									r.type = this.uci.creates[c][s][k];
 								else if (k == '.create')
-									r.name = this.uci.creates[i][k];
+									r.name = this.uci.creates[c][s][k];
 								else if (k.charAt(0) != '.')
-									r.values[k] = this.uci.creates[i][k];
+									r.values[k] = this.uci.creates[c][s][k];
 							}
 
 							_luci2.uci.add(r.config, r.type, r.name, r.values);
