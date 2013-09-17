@@ -5,7 +5,7 @@ L.ui.view.extend({
             description: L.tr('Customizes the behaviour of the device LEDs if possible.'),
             prepare: function() {
                 return $.when(
-                    L.system.listLEDs(function(leds) {
+                    L.system.listLEDs().then(function(leds) {
                         delete m.sections[0].fields.sysfs.choices;
                         delete m.sections[0].fields.trigger.choices;
 
@@ -15,7 +15,7 @@ L.ui.view.extend({
                         for (var i = 0; i < leds[0].triggers.length; i++)
                             m.sections[0].fields.trigger.value(leds[0].triggers[i]);
                     }),
-                    L.system.listUSBDevices(function(devs) {
+                    L.system.listUSBDevices().then(function(devs) {
                         delete m.sections[0].fields._usb_dev.choices;
 
                         for (var i = 0; i < devs.length; i++)
@@ -23,17 +23,8 @@ L.ui.view.extend({
                                                                 '%04x:%04x (%s - %s)'.format(devs[i].vendor_id, devs[i].product_id,
                                                                                              devs[i].vendor_name || '?', devs[i].product_name || '?'));
                     }),
-                    L.network.getDeviceStatus(undefined, function(devs) {
-                        var devices = [ ];
-
-                        for (var device in devs)
-                            if (device != 'lo')
-                                devices.push(device);
-
-                        devices.sort();
-
+                    L.network.listDeviceNames().then(function(devices) {
                         delete m.sections[0].fields._net_dev.choices;
-
                         for (var i = 0; i < devices.length; i++)
                             m.sections[0].fields._net_dev.value(devices[i]);
                     })

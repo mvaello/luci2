@@ -25,7 +25,7 @@ L.ui.view.extend({
         {
             var id = this.id(sid);
 
-            return L.system.getInfo(function(info) {
+            return L.system.getSystemInfo().then(function(info) {
                 var date = new Date();
                 var time = info.localtime;
 
@@ -186,7 +186,7 @@ L.ui.view.extend({
         });
 
         e.load = function(sid) {
-            return L.system.initEnabled('sysntpd', function(enabled) {
+            return L.system.initEnabled('sysntpd').then(function(enabled) {
                 e.options.initial = enabled;
             });
         };

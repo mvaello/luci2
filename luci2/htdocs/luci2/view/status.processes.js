@@ -3,7 +3,7 @@ L.ui.view.extend({
     description: L.tr('This list gives an overview over currently running system processes and their status.'),
     execute: function() {
         var allow_signals = this.options.acls.status;
-        return L.system.getProcessList(function(list) {
+        return L.system.getProcessList().then(function(list) {
             var procTable = new L.ui.table({
                 columns: [ {
                     caption: L.tr('PID'),

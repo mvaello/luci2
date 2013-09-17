@@ -131,7 +131,7 @@ L.ui.view.extend({
             }
         });
 
-        k.load     = function(sid) { s3.keys = [ ]; return L.system.getSSHKeys(function(keys) { s3.keys = keys }) };
+        k.load     = function(sid) { s3.keys = [ ]; return L.system.getSSHKeys().then(function(keys) { s3.keys = keys }) };
         k.save     = function(sid) { if (sid == '0') return L.system.setSSHKeys(s3.keys) };
         k.ucivalue = function(sid) { return s3.keys[parseInt(sid)] };
 

@@ -3,7 +3,7 @@ L.ui.view.extend({
 	description: L.tr('The following rules are currently active on this system.'),
 	execute: function() {
 		return $.when(
-			L.network.getARPTable(function(arp) {
+			L.network.getARPTable().then(function(arp) {
 				var arpTable = new L.ui.table({
 					caption: L.tr('ARP'),
 					columns: [{
@@ -21,7 +21,7 @@ L.ui.view.extend({
 				arpTable.rows(arp);
 				arpTable.insertInto('#arp_table');
 			}),
-			L.network.getRoutes(function(routes) {
+			L.network.getRoutes().then(function(routes) {
 				var routeTable = new L.ui.table({
 					caption: L.tr('Active IPv4-Routes'),
 					columns: [{
@@ -42,7 +42,7 @@ L.ui.view.extend({
 				routeTable.rows(routes);
 				routeTable.insertInto('#route_table');
 			}),
-			L.network.getIPv6Routes(function(routes) {
+			L.network.getIPv6Routes().then(function(routes) {
 				var route6Table = new L.ui.table({
 					caption: L.tr('Active IPv6-Routes'),
 					columns: [{

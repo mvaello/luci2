@@ -2,7 +2,7 @@ L.ui.view.extend({
 	title: L.tr('Status'),
 	execute: function() {
 		return $.when(
-			L.network.findWanInterfaces(function(wans) {
+			L.network.findWanInterfaces().then(function(wans) {
 				var wan  = wans[0];
 				var wan6 = wans[1];
 
@@ -86,7 +86,7 @@ L.ui.view.extend({
 
 				networkTable.insertInto('#network_status_table');
 			}),
-			L.network.getConntrackCount(function(count) {
+			L.network.getConntrackCount().then(function(count) {
 				var conntrackTable = new L.ui.table({
 					caption: L.tr('Connection Tracking'),
 					columns: [ {
@@ -105,7 +105,7 @@ L.ui.view.extend({
 				conntrackTable.row([ L.tr('Active Connections'), count ]);
 				conntrackTable.insertInto('#conntrack_status_table');
 			}),
-			L.system.getInfo(function(info) {
+			L.system.getInfo().then(function(info) {
 				var sysinfoTable = new L.ui.table({
 					caption: L.tr('System'),
 					columns: [ { width: '300px' }, { } ]
@@ -207,7 +207,7 @@ L.ui.view.extend({
 				diskTable.row([ '' + L.tr('Temporary Usage') + ' (/tmp)', [ info.tmp.used, info.tmp.total ] ]);
 				diskTable.insertInto('#disk_status_table');
 			}),
-			L.wireless.getInfo(null, function(radios) {
+			L.wireless.getWirelessStatus().then(function(radios) {
 				var phys = [ ];
 				for (var phy in radios)
 					phys.push(phy);
@@ -309,7 +309,7 @@ L.ui.view.extend({
 					$('#wifi_status_table').append(wifiTable.render());
 				}
 			}),
-			L.wireless.getAssocList(null, function(assoclist) {
+			L.wireless.getAssocLists().then(function(assoclist) {
 				var formatRate = function(v)
 				{
 					return (typeof v.mcs != 'undefined')
@@ -352,7 +352,7 @@ L.ui.view.extend({
 				assocTable.rows(assoclist);
 				assocTable.insertInto('#wifi_assoc_table');
 			}),
-			L.network.getDHCPLeases(function(leases) {
+			L.network.getDHCPLeases().then(function(leases) {
 				var leaseTable = new L.ui.table({
 					caption:     L.tr('DHCP Leases'),
 					placeholder: L.tr('There are no active leases.'),
@@ -378,7 +378,7 @@ L.ui.view.extend({
 				leaseTable.rows(leases);
 				leaseTable.insertInto('#lease_status_table');
 			}),
-			L.network.getDHCPv6Leases(function(leases) {
+			L.network.getDHCPv6Leases().then(function(leases) {
 				if (!leases.length)
 					return;
 

@@ -177,52 +177,6 @@ function LuCI2()
 {
 	var _luci2 = this;
 
-	var alphacmp = function(a, b)
-	{
-		if (a < b)
-			return -1;
-		else if (a > b)
-			return 1;
-		else
-			return 0;
-	};
-
-	var retcb = function(cb, rv)
-	{
-		if (typeof(cb) == 'function')
-			cb(rv);
-
-		return rv;
-	};
-
-	var isa = function(x, t)
-	{
-		if (typeof(x) != 'string' && typeof(t) == 'string')
-			return (Object.prototype.toString.call(x) == '[object ' + t + ']');
-
-		return (Object.prototype.toString.call(x) == Object.prototype.toString.call(t));
-	};
-
-	var rcall = function(obj, func, params, res_attr, res_default, cb, filter)
-	{
-		if (typeof(params) == 'undefined')
-			params = { };
-
-		return _luci2.rpc.call(obj, func, params).then(function(res) {
-			if (res[0] != 0 || typeof(res[1]) == 'undefined')
-				return retcb(cb, res_default);
-
-			var rv = (typeof(res_attr) != 'undefined') ? res[1][res_attr] : res[1];
-			if (typeof(rv) == 'undefined' || (typeof(res_default) != 'undefined' && !isa(rv, res_default)))
-				return retcb(cb, res_default);
-
-			if (typeof(filter) == 'function')
-				rv = filter(rv);
-
-			return retcb(cb, rv);
-		});
-	};
-
 	var Class = function() { };
 
 	Class.extend = function(properties)
@@ -274,7 +228,7 @@ function LuCI2()
 		return obj;
 	};
 
-	this.deferred = function(x)
+	this.isDeferred = function(x)
 	{
 		return (typeof(x) == 'object' &&
 		        typeof(x.then) == 'function' &&
@@ -283,7 +237,7 @@ function LuCI2()
 
 	this.deferrable = function()
 	{
-		if (this.deferred(arguments[0]))
+		if (this.isDeferred(arguments[0]))
 			return arguments[0];
 
 		var d = $.Deferred();
@@ -433,350 +387,429 @@ function LuCI2()
 	};
 
 	this.globals = {
+		timeout:  3000,
 		resource: '/luci2',
 		sid:      '00000000000000000000000000000000'
 	};
 
 	this.rpc = {
 
-		_msg_id: 1,
+		_id: 1,
+		_batch: undefined,
+		_requests: { },
 
-		_wrap_msg: function(method, object, func, args)
-		{
-			if (typeof(args) != 'object')
-				args = { };
-
-			return {
-				id:      _luci2.rpc._msg_id++,
-				jsonrpc: "2.0",
-				method:  method,
-				params:  (method == 'call') ? [ _luci2.globals.sid, object, func, args ] : object
-			};
-		},
-
-		_parse_response: function(keys, priv)
-		{
-			return function(data) {
-				var obj;
-				try {
-					obj = $.parseJSON(data);
-				} catch(e) { }
-
-				if (typeof(obj) != 'object')
-					return undefined;
-
-				/* is a batched response */
-				if (keys)
-				{
-					var rv = { };
-					for (var i = 0; i < obj.length; i++)
-					{
-						var p = (typeof(priv) != 'undefined') ? priv[i] : undefined;
-
-						if ($.isArray(obj[i].result) && typeof(priv) != 'undefined')
-							obj[i].result[2] = p;
-
-						if (obj[i].jsonrpc != '2.0' || obj[i].error || !obj[i].result)
-							rv[keys[i]] = [ 4 /* UBUS_STATUS_NO_DATA */, undefined, p ];
-						else
-							rv[keys[i]] = obj[i].result;
-					}
-					return rv;
-				}
-
-				if (obj.jsonrpc != '2.0' || obj.error || !obj.result)
-					return [ 4 /* UBUS_STATUS_NO_DATA */, undefined, priv ];
-
-				if ($.isArray(obj.result) && typeof(priv) != 'undefined')
-					obj.result[2] = priv;
-
-				return obj.result;
-			};
-		},
-
-		_post_msg: function(message, cb, keys, priv)
+		_call: function(req, cb)
 		{
 			return $.ajax('/ubus', {
 				cache:       false,
 				contentType: 'application/json',
-				data:        JSON.stringify(message),
-				dataFilter:  _luci2.rpc._parse_response(keys, priv),
-				dataType:    'text',
-				success:     cb,
-				type:        'POST'
-			});
+				data:        JSON.stringify(req),
+				dataType:    'json',
+				type:        'POST',
+				timeout:     _luci2.globals.timeout
+			}).then(cb);
 		},
 
-		_post_single: function(object, method, args, cb, priv)
+		_list_cb: function(msg)
 		{
-			var msg = _luci2.rpc._wrap_msg('call', object, method, args, priv);
-			return _luci2.rpc._post_msg(msg, cb, undefined, priv);
+			/* verify message frame */
+			if (typeof(msg) != 'object' || msg.jsonrpc != '2.0' || !msg.id)
+				throw 'Invalid JSON response';
+
+			return msg.result;
 		},
 
-		_post_batch: function(methods, cb)
+		_call_cb: function(msg)
 		{
-			if (typeof(methods) != 'object')
-				return undefined;
+			var data = [ ];
+			var type = Object.prototype.toString;
 
-			var msgs = [ ];
-			var keys = [ ];
-			var priv = [ ];
+			if (!$.isArray(msg))
+				msg = [ msg ];
 
-			for (var k in methods)
+			for (var i = 0; i < msg.length; i++)
 			{
-				if (typeof(methods[k]) != 'object' || methods[k].length < 2)
-					continue;
+				/* verify message frame */
+				if (typeof(msg[i]) != 'object' || msg[i].jsonrpc != '2.0' || !msg[i].id)
+					throw 'Invalid JSON response';
 
-				keys.push(k);
-				priv.push(methods[k][3]);
-				msgs.push(_luci2.rpc._wrap_msg('call', methods[k][0], methods[k][1], methods[k][2]));
+				/* fetch related request info */
+				var req = _luci2.rpc._requests[msg[i].id];
+				if (typeof(req) != 'object')
+					throw 'No related request for JSON response';
+
+				/* fetch response attribute and verify returned type */
+				var ret = undefined;
+
+				if ($.isArray(msg[i].result) && msg[i].result[0] == 0)
+					ret = (msg[i].result.length > 1) ? msg[i].result[1] : msg[i].result[0];
+
+				if (req.expect)
+				{
+					for (var key in req.expect)
+					{
+						if (typeof(ret) != 'undefined' && key != '')
+							ret = ret[key];
+
+						if (type.call(ret) != type.call(req.expect[key]))
+							ret = req.expect[key];
+
+						break;
+					}
+				}
+
+				/* apply filter */
+				if (typeof(req.filter) == 'function')
+				{
+					req.priv[0] = ret;
+					req.priv[1] = req.params;
+					ret = req.filter.apply(_luci2.rpc, req.priv);
+				}
+
+				/* store response data */
+				if (typeof(req.index) == 'number')
+					data[req.index] = ret;
+				else
+					data = ret;
+
+				/* delete request object */
+				delete _luci2.rpc._requests[msg[i].id];
 			}
 
-			if (msgs.length > 0)
-				return _luci2.rpc._post_msg(msgs, cb, keys, priv);
-
-			return _luci2.deferrable([ ]);
+			return data;
 		},
 
-		call: function()
+		list: function()
 		{
-			var a = arguments;
-			if (typeof a[0] == 'string')
-				return _luci2.rpc._post_single(a[0], a[1], a[2], a[3], a[4]);
-			else
-				return _luci2.rpc._post_batch(a[0], a[1]);
+			var params = [ ];
+			for (var i = 0; i < arguments.length; i++)
+				params[i] = arguments[i];
+
+			var msg = {
+				jsonrpc: '2.0',
+				id:      this._id++,
+				method:  'list',
+				params:  (params.length > 0) ? params : undefined
+			};
+
+			return this._call(msg, this._list_cb);
 		},
 
-		list: function(objects)
+		batch: function()
 		{
-			var msg = _luci2.rpc._wrap_msg('list', objects);
-			return _luci2.rpc._post_msg(msg);
+			if (!$.isArray(this._batch))
+				this._batch = [ ];
 		},
 
-		access: function(scope, object, method, cb)
+		flush: function()
 		{
-			return _luci2.rpc._post_single('session', 'access', {
-				'sid':      _luci2.globals.sid,
-				'scope':	scope,
-				'object':   object,
-				'function': method
-			}, function(rv) {
-				return retcb(cb, (rv[0] == 0 && rv[1] && rv[1].access == true));
-			});
+			if (!$.isArray(this._batch))
+				return _luci2.deferrable([ ]);
+
+			var req = this._batch;
+			delete this._batch;
+
+			/* call rpc */
+			return this._call(req, this._call_cb);
+		},
+
+		declare: function(options)
+		{
+			var _rpc = this;
+
+			return function() {
+				/* build parameter object */
+				var p_off = 0;
+				var params = { };
+				if ($.isArray(options.params))
+					for (p_off = 0; p_off < options.params.length; p_off++)
+						params[options.params[p_off]] = arguments[p_off];
+
+				/* all remaining arguments are private args */
+				var priv = [ undefined, undefined ];
+				for (; p_off < arguments.length; p_off++)
+					priv.push(arguments[p_off]);
+
+				/* store request info */
+				var req = _rpc._requests[_rpc._id] = {
+					expect: options.expect,
+					filter: options.filter,
+					params: params,
+					priv:   priv
+				};
+
+				/* build message object */
+				var msg = {
+					jsonrpc: '2.0',
+					id:      _rpc._id++,
+					method:  'call',
+					params:  [
+						_luci2.globals.sid,
+						options.object,
+						options.method,
+						params
+					]
+				};
+
+				/* when a batch is in progress then store index in request data
+				 * and push message object onto the stack */
+				if ($.isArray(_rpc._batch))
+				{
+					req.index = _rpc._batch.push(msg) - 1;
+					return _luci2.deferrable(msg);
+				}
+
+				/* call rpc */
+				return _rpc._call(msg, _rpc._call_cb);
+			};
 		}
 	};
 
 	this.uci = {
 
-		writable: function(cb)
+		writable: function()
 		{
-			return _luci2.rpc.access('ubus', 'uci', 'commit', cb);
+			return _luci2.session.access('ubus', 'uci', 'commit');
 		},
 
-		add: function(config, type, cb)
-		{
-			return rcall('uci', 'add', { config: config, type: type }, 'section', '', cb);
-		},
+		add: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'add',
+			params: [ 'config', 'type', 'name', 'values' ],
+			expect: { section: '' }
+		}),
 
 		apply: function()
 		{
 
 		},
 
-		changes: function(config)
-		{
-			return rcall('uci', 'changes', { config: config }, 'changes', [ ], cb);
-		},
+		changes: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'changes',
+			params: [ 'config' ],
+			expect: { changes: [ ] }
+		}),
 
-		commit: function(config)
-		{
-			return rcall('uci', 'commit', { config: config }, undefined, undefined, cb);
-		},
+		commit: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'commit',
+			params: [ 'config' ]
+		}),
+
+		_delete_one: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'delete',
+			params: [ 'config', 'section', 'option' ]
+		}),
+
+		_delete_multiple: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'delete',
+			params: [ 'config', 'section', 'options' ]
+		}),
 
 		'delete': function(config, section, option)
 		{
-			var req = { config: config, section: section };
-
-			if (isa(option, 'Array'))
-				req.options = option;
+			if ($.isArray(option))
+				return this._delete_multiple(config, section, option);
 			else
-				req.option = option;
-
-			return rcall('uci', 'delete', req, undefined, undefined, cb);
+				return this._delete_one(config, section, option);
 		},
 
-		delete_all: function(config, type, matches)
-		{
-			return rcall('uci', 'delete', { config: config, type: type, match: matches }, undefined, undefined, cb);
-		},
+		delete_all: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'delete',
+			params: [ 'config', 'type', 'match' ]
+		}),
+
+		_foreach: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'get',
+			params: [ 'config', 'type' ],
+			expect: { values: { } }
+		}),
 
 		foreach: function(config, type, cb)
 		{
-			return rcall('uci', 'get', { config: config, type: type }, 'values', { }, function(sections) {
+			return this._foreach(config, type).then(function(sections) {
 				for (var s in sections)
 					cb(sections[s]);
 			});
 		},
 
-		get: function(config, section, option, cb)
-		{
-			return rcall('uci', 'get', { config: config, section: section, option: option }, undefined, { }, function(res) {
-				if (typeof(option) == 'undefined')
-					return retcb(cb, (res.values && res.values['.type']) ? res.values['.type'] : undefined);
+		get: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'get',
+			params: [ 'config', 'section', 'option' ],
+			expect: { '': { } },
+			filter: function(data, params) {
+				if (typeof(params.option) == 'undefined')
+					return data.values ? data.values['.type'] : undefined;
+				else
+					return data.value;
+			}
+		}),
 
-				return retcb(cb, res.value);
-			});
-		},
+		get_all: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'get',
+			params: [ 'config', 'section' ],
+			expect: { values: { } },
+			filter: function(data, params) {
+				if (typeof(params.section) == 'string')
+					data['.section'] = params.section;
+				else if (typeof(params.config) == 'string')
+					data['.package'] = params.config;
+				return data;
+			}
+		}),
 
-		get_all: function(config, section, cb)
+		get_first: function(config, type, option)
 		{
-			return rcall('uci', 'get', { config: config, section: section }, 'values', { }, cb);
-		},
-
-		get_first: function(config, type, option, cb)
-		{
-			return rcall('uci', 'get', { config: config, type: type }, 'values', { }, function(sections) {
+			return this._foreach(config, type).then(function(sections) {
 				for (var s in sections)
 				{
 					var val = (typeof(option) == 'string') ? sections[s][option] : sections[s]['.name'];
 
 					if (typeof(val) != 'undefined')
-						return retcb(cb, val);
+						return val;
 				}
 
-				return retcb(cb, undefined);
+				return undefined;
 			});
 		},
 
-		section: function(config, type, name, values, cb)
-		{
-			return rcall('uci', 'add', { config: config, type: type, name: name, values: values }, 'section', undefined, cb);
-		},
+		section: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'add',
+			params: [ 'config', 'type', 'name', 'values' ],
+			expect: { section: '' }
+		}),
 
-		set: function(config, section, option, value, cb)
+		_set: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'set',
+			params: [ 'config', 'section', 'values' ]
+		}),
+
+		set: function(config, section, option, value)
 		{
 			if (typeof(value) == 'undefined' && typeof(option) == 'string')
-				return rcall('uci', 'add', { config: config, section: section, type: option }, undefined, undefined, cb);
-			else if (isa(option, 'Object'))
-				return rcall('uci', 'set', { config: config, section: section, values: option }, undefined, undefined, cb);
-			else
+				return this.section(config, section, option); /* option -> type */
+			else if ($.isPlainObject(option))
+				return this._set(config, section, option); /* option -> values */
 
 			var values = { };
 			    values[option] = value;
 
-			return rcall('uci', 'set', { config: config, section: section, values: values }, undefined, undefined, cb);
+			return this._set(config, section, values);
 		},
 
-		order: function(config, sections, cb)
-		{
-			return rcall('uci', 'order', { config: config, sections: sections }, undefined, undefined, cb);
-		}
+		order: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'order',
+			params: [ 'config', 'sections' ]
+		})
 	};
 
 	this.network = {
-		getNetworkStatus: function(cb)
+		listNetworkNames: function() {
+			return _luci2.rpc.list('network.interface.*').then(function(list) {
+				var names = [ ];
+				for (var name in list)
+					if (name != 'network.interface.loopback')
+						names.push(name.substring(18));
+				names.sort();
+				return names;
+			});
+		},
+
+		listDeviceNames: _luci2.rpc.declare({
+			object: 'network.device',
+			method: 'status',
+			expect: { '': { } },
+			filter: function(data) {
+				var names = [ ];
+				for (var name in data)
+					if (name != 'lo')
+						names.push(name);
+				names.sort();
+				return names;
+			}
+		}),
+
+		getNetworkStatus: function()
 		{
-			var ifaces = [ ];
-			var assign = function(target, key)
-			{
-				return function(value) {
-					if (typeof(value) != 'undefined' && !$.isEmptyObject(value))
-						target[key] = value;
-				};
-			};
+			var nets = [ ];
+			var devs = { };
 
-			return _luci2.rpc.list().then(function(data) {
-				var requests = [ ];
+			return this.listNetworkNames().then(function(names) {
+				_luci2.rpc.batch();
 
-				for (var i = 0; i < data.length; i++)
+				for (var i = 0; i < names.length; i++)
+					_luci2.network.getInterfaceStatus(names[i]);
+
+				return _luci2.rpc.flush();
+			}).then(function(networks) {
+				for (var i = 0; i < networks.length; i++)
 				{
-					if (data[i].indexOf('network.interface.') != 0)
-						continue;
-
-					var ifname = data[i].substring(18);
-					if (ifname == 'loopback')
-						continue;
-
-					var iface = { 'name': ifname };
-
-					ifaces.push(iface);
-					requests.push(['network.interface', 'status', { 'interface': ifname }, iface]);
+					var net = nets[i] = networks[i];
+					var dev = net.l3_device || net.l2_device;
+					if (dev)
+						net.device = devs[dev] = { };
 				}
 
-				return _luci2.rpc.call(requests, function(responses) {
-					for (var key in responses)
-						if (responses[key][0] == 0 && responses[key][1] && responses[key][2])
-							$.extend(responses[key][2], responses[key][1]);
-				});
-			}).then(function() {
-				var requests = [ ];
+				_luci2.rpc.batch();
 
-				for (var i = 0; i < ifaces.length; i++)
+				for (var dev in devs)
+					_luci2.network.listDeviceNamestatus(dev);
+
+				return _luci2.rpc.flush();
+			}).then(function(devices) {
+				_luci2.rpc.batch();
+
+				for (var i = 0; i < devices.length; i++)
 				{
-					var iface = ifaces[i];
+					var brm = devices[i]['bridge-members'];
+					delete devices[i]['bridge-members'];
 
-					var dev = iface.l3_device || iface.l2_device;
-					if (!dev)
+					$.extend(devs[devices[i]['device']], devices[i]);
+
+					if (!brm)
 						continue;
 
-					iface.device = { 'name': dev };
-					requests[dev] = ['network.device', 'status', { 'name': dev }, iface.device];
-				}
+					devs[devices[i]['device']].subdevices = [ ];
 
-				return _luci2.rpc.call(requests, function(responses) {
-					for (var key in responses)
-						if (responses[key][0] == 0 && responses[key][1] && responses[key][2])
-							$.extend(responses[key][2], responses[key][1]);
-				});
-			}).then(function() {
-				var requests = [ ];
-
-				for (var i = 0; i < ifaces.length; i++)
-				{
-					var iface = ifaces[i];
-					if (!iface.device)
-						continue;
-
-					var subdevs = iface.device['bridge-members'];
-					if (!subdevs)
-						continue;
-
-					iface.subdevices = [ ];
-					for (var j = 0; j < subdevs.length; j++)
+					for (var j = 0; j < brm.length; j++)
 					{
-						iface.subdevices[j] = { 'name': subdevs[j] };
-						requests.push(['network.device', 'status', { 'name': subdevs[j] }, iface.subdevices[j]]);
+						if (!devs[brm[j]])
+						{
+							devs[brm[j]] = { };
+							_luci2.network.listDeviceNamestatus(brm[j]);
+						}
+
+						devs[devices[i]['device']].subdevices[j] = devs[brm[j]];
 					}
 				}
 
-				return _luci2.rpc.call(requests, function(responses) {
-					for (var key in responses)
-						if (responses[key][0] == 0 && responses[key][1] && responses[key][2])
-							$.extend(responses[key][2], responses[key][1]);
-				});
-			}).then(function() {
-				var requests = [ ];
+				return _luci2.rpc.flush();
+			}).then(function(subdevices) {
+				for (var i = 0; i < subdevices.length; i++)
+					$.extend(devs[subdevices[i]['device']], subdevices[i]);
 
-				for (var i = 0; i < ifaces.length; i++)
-				{
-					var iface = ifaces[i];
+				_luci2.rpc.batch();
 
-					if (iface.device)
-						requests.push(['iwinfo', 'info', { 'device': iface.device.name }, iface.device]);
+				for (var dev in devs)
+					_luci2.wireless.getDeviceStatus(dev);
 
-					if (iface.subdevices)
-						for (var j = 0; j < iface.subdevices.length; j++)
-							requests.push(['iwinfo', 'info', { 'device': iface.subdevices[j].name }, iface.subdevices[j]]);
-				}
+				return _luci2.rpc.flush();
+			}).then(function(wifidevices) {
+				for (var i = 0; i < wifidevices.length; i++)
+					if (wifidevices[i])
+						devs[wifidevices[i]['device']].wireless = wifidevices[i];
 
-				return _luci2.rpc.call(requests, function(responses) {
-					for (var key in responses)
-						if (responses[key][0] == 0 && responses[key][1] && responses[key][2])
-							if (!$.isEmptyObject(responses[key][1]))
-								responses[key][2].wireless = responses[key][1];
-				});
-			}).then(function() {
-				ifaces.sort(function(a, b) {
+				nets.sort(function(a, b) {
 					if (a['interface'] < b['interface'])
 						return -1;
 					else if (a['interface'] > b['interface'])
@@ -784,119 +817,162 @@ function LuCI2()
 					else
 						return 0;
 				});
-				return retcb(cb, ifaces);
+
+				return nets;
 			});
 		},
 
 		findWanInterfaces: function(cb)
 		{
-			return _luci2.rpc.list().then(function(data) {
-				var requests = { };
-				for (var i = 0; i < data.length; i++)
-				{
-					if (data[i].indexOf('network.interface.') == 0)
-					{
-						var ifname = data[i].substring(18);
-						requests[ifname] = ['network.interface', 'status', { 'interface': ifname }];
-					}
-				}
-				return _luci2.rpc.call(requests);
-			}).then(function(responses) {
-				var rv = [ ];
-				for (var ifname in responses)
-				{
-					var response = responses[ifname];
+			return this.listNetworkNames().then(function(names) {
+				_luci2.rpc.batch();
 
-					if (response[0] != 0 || !response[1] || !response[1].route)
-						continue;
+				for (var i = 0; i < names.length; i++)
+					_luci2.network.getInterfaceStatus(names[i]);
 
-					for (var rn = 0, rt = response[1].route[rn];
-						 rn < response[1].route.length;
-						 rn++, rt = response[1].route[rn])
+				return _luci2.rpc.flush();
+			}).then(function(interfaces) {
+				var rv = [ undefined, undefined ];
+
+				for (var i = 0; i < interfaces.length; i++)
+				{
+					for (var j = 0; j < interfaces[i].route.length; j++)
 					{
+						var rt = interfaces[i].route[j];
+
 						if (typeof(rt.table) != 'undefined')
 							continue;
 
 						if (rt.target == '0.0.0.0' && rt.mask == 0)
-							rv[0] = response[1];
+							rv[0] = interfaces[i];
 						else if (rt.target == '::' && rt.mask == 0)
-							rv[1] = response[1];
+							rv[1] = interfaces[i];
 					}
 				}
 
-				return retcb(cb, rv);
-			});
-		},
-
-		getDHCPLeases: function(cb)
-		{
-			return rcall('luci2.network', 'dhcp_leases', undefined, 'leases', [ ], cb);
-		},
-
-		getDHCPv6Leases: function(cb)
-		{
-			return rcall('luci2.network', 'dhcp6_leases', undefined, 'leases', [ ], cb);
-		},
-
-		getRoutes: function(cb)
-		{
-			return rcall('luci2.network', 'routes', undefined, 'routes', [ ], cb);
-		},
-
-		getIPv6Routes: function(cb)
-		{
-			return rcall('luci2.network', 'routes6', undefined, 'routes', [ ], cb);
-		},
-
-		getARPTable: function(cb)
-		{
-			return rcall('luci2.network', 'arp_table', undefined, 'entries', [ ], cb);
-		},
-
-		getInterfaceStatus: function(iface, cb)
-		{
-			return rcall('network.interface', 'status', { 'interface': iface }, undefined, { }, cb, function(rv) {
-				rv['interface'] = iface;
-				rv['l2_device'] = rv['device'];
 				return rv;
 			});
 		},
 
-		getDeviceStatus: function(dev, cb)
-		{
-			return rcall('network.device', 'status', { name: dev }, undefined, { }, cb, function(rv) {
-				if (typeof(dev) == 'string')
-					rv.device = dev;
-				return rv;
-			});
-		},
+		getDHCPLeases: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'dhcp_leases',
+			expect: { leases: [ ] }
+		}),
 
-		getConntrackCount: function(cb)
-		{
-			return rcall('luci2.network', 'conntrack_count', undefined, undefined, {
-				count: 0,
-				limit: 0
-			}, cb);
-		}
+		getDHCPv6Leases: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'dhcp6_leases',
+			expect: { leases: [ ] }
+		}),
+
+		getRoutes: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'routes',
+			expect: { routes: [ ] }
+		}),
+
+		getIPv6Routes: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'routes',
+			expect: { routes: [ ] }
+		}),
+
+		getARPTable: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'arp_table',
+			expect: { entries: [ ] }
+		}),
+
+		getInterfaceStatus: _luci2.rpc.declare({
+			object: 'network.interface',
+			method: 'status',
+			params: [ 'interface' ],
+			expect: { '': { } },
+			filter: function(data, params) {
+				data['interface'] = params['interface'];
+				data['l2_device'] = data['device'];
+				delete data['device'];
+				return data;
+			}
+		}),
+
+		listDeviceNamestatus: _luci2.rpc.declare({
+			object: 'network.device',
+			method: 'status',
+			params: [ 'name' ],
+			expect: { '': { } },
+			filter: function(data, params) {
+				data['device'] = params['name'];
+				return data;
+			}
+		}),
+
+		getConntrackCount: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'conntrack_count',
+			expect: { '': { count: 0, limit: 0 } }
+		})
 	};
 
 	this.wireless = {
-		getDevices: function(cb) {
-			return rcall('iwinfo', 'devices', undefined, 'devices', [ ], cb, function(rv) {
-				rv.sort();
-				return rv;
-			});
-		},
+		listDeviceNames: _luci2.rpc.declare({
+			object: 'iwinfo',
+			method: 'devices',
+			expect: { 'devices': [ ] },
+			filter: function(data) {
+				data.sort();
+				return data;
+			}
+		}),
 
-		getInfo: function(dev, cb) {
-			var parse_info = function(device, info, rv)
-			{
-				if (!rv[info.phy])
-					rv[info.phy] = {
-						networks: [ ]
-					};
+		getDeviceStatus: _luci2.rpc.declare({
+			object: 'iwinfo',
+			method: 'info',
+			params: [ 'device' ],
+			expect: { '': { } },
+			filter: function(data, params) {
+				if (!$.isEmptyObject(data))
+				{
+					data['device'] = params['device'];
+					return data;
+				}
+				return undefined;
+			}
+		}),
 
-				var phy = rv[info.phy];
+		getAssocList: _luci2.rpc.declare({
+			object: 'iwinfo',
+			method: 'assoclist',
+			params: [ 'device' ],
+			expect: { results: [ ] },
+			filter: function(data, params) {
+				for (var i = 0; i < data.length; i++)
+					data[i]['device'] = params['device'];
+
+				data.sort(function(a, b) {
+					if (a.bssid < b.bssid)
+						return -1;
+					else if (a.bssid > b.bssid)
+						return 1;
+					else
+						return 0;
+				});
+
+				return data;
+			}
+		}),
+
+		getWirelessStatus: function() {
+			return this.listDeviceNames().then(function(names) {
+				_luci2.rpc.batch();
+
+				for (var i = 0; i < names.length; i++)
+					_luci2.wireless.getDeviceStatus(names[i]);
+
+				return _luci2.rpc.flush();
+			}).then(function(networks) {
+				var rv = { };
 
 				var phy_attrs = [
 					'country', 'channel', 'frequency', 'frequency_offset',
@@ -908,125 +984,46 @@ function LuCI2()
 					'signal', 'noise', 'bitrate', 'encryption'
 				];
 
-				for (var i = 0; i < phy_attrs.length; i++)
-					phy[phy_attrs[i]] = info[phy_attrs[i]];
+				for (var i = 0; i < networks.length; i++)
+				{
+					var phy = rv[networks[i].phy] || (
+						rv[networks[i].phy] = { networks: [ ] }
+					);
 
-				var net = {
-					device: device
-				};
+					var net = {
+						device: networks[i].device
+					};
 
-				for (var i = 0; i < net_attrs.length; i++)
-					net[net_attrs[i]] = info[net_attrs[i]];
+					for (var j = 0; j < phy_attrs.length; j++)
+						phy[phy_attrs[j]] = networks[i][phy_attrs[j]];
 
-				phy.networks.push(net);
+					for (var j = 0; j < net_attrs.length; j++)
+						net[net_attrs[j]] = networks[i][net_attrs[j]];
 
-				return phy;
-			};
+					phy.networks.push(net);
+				}
 
-			if (!dev)
-			{
-				return _luci2.wireless.getDevices().then(function(devices) {
-					var requests = [ ];
-
-					for (var i = 0; i < devices.length; i++)
-					{
-						if (devices[i].indexOf('.sta') >= 0)
-							continue;
-
-						requests[devices[i]] = [ 'iwinfo', 'info', { device: devices[i] } ];
-					}
-
-					return _luci2.rpc.call(requests);
-				}).then(function(responses) {
-					var rv = { };
-
-					for (var device in responses)
-					{
-						var response = responses[device];
-
-						if (response[0] != 0 || !response[1])
-							continue;
-
-						parse_info(device, response[1], rv);
-					}
-
-					return retcb(cb, rv);
-				});
-			}
-
-			return _luci2.rpc.call('iwinfo', 'info', { device: dev }).then(function(response) {
-				if (response[0] != 0 || !response[1])
-					return retcb(cb, { });
-
-				return retcb(cb, parse_info(dev, response[1], { }));
+				return rv;
 			});
 		},
 
-		getAssocList: function(dev, cb)
+		getAssocLists: function()
 		{
-			if (!dev)
-			{
-				return _luci2.wireless.getDevices().then(function(devices) {
-					var requests = { };
+			return this.listDeviceNames().then(function(names) {
+				_luci2.rpc.batch();
 
-					for (var i = 0; i < devices.length; i++)
-					{
-						if (devices[i].indexOf('.sta') >= 0)
-							continue;
+				for (var i = 0; i < names.length; i++)
+					_luci2.wireless.getAssocList(names[i]);
 
-						requests[devices[i]] = [ 'iwinfo', 'assoclist', { device: devices[i] } ];
-					}
-
-					return _luci2.rpc.call(requests);
-				}).then(function(responses) {
-					var rv = [ ];
-
-					for (var device in responses)
-					{
-						var response = responses[device];
-
-						if (response[0] != 0 || !response[1] || !response[1].results)
-							continue;
-
-						for (var i = 0; i < response[1].results.length; i++)
-						{
-							var station = response[1].results[i];
-
-							station.device = device;
-							rv.push(station);
-						}
-					}
-
-					rv.sort(function(a, b) {
-						return (a.device == b.device)
-							? (a.bssid < b.bssid)
-							: (a.device > b.device)
-						;
-					});
-
-					return retcb(cb, rv);
-				});
-			}
-
-			return _luci2.rpc.call('iwinfo', 'assoclist', { device: dev }).then(function(response) {
+				return _luci2.rpc.flush();
+			}).then(function(assoclists) {
 				var rv = [ ];
 
-				if (response[0] != 0 || !response[1] || !response[1].results)
-					return retcb(cb, rv);
+				for (var i = 0; i < assoclists.length; i++)
+					for (var j = 0; j < assoclists[i].length; j++)
+						rv.push(assoclists[i][j]);
 
-				for (var i = 0; i < response[1].results.length; i++)
-				{
-					var station = response[1].results[i];
-
-					station.device = dev;
-					rv.push(station);
-				}
-
-				rv.sort(function(a, b) {
-					return (a.bssid < b.bssid);
-				});
-
-				return retcb(cb, rv);
+				return rv;
 			});
 		},
 
@@ -1076,93 +1073,108 @@ function LuCI2()
 	};
 
 	this.system = {
+		getSystemInfo: _luci2.rpc.declare({
+			object: 'system',
+			method: 'info',
+			expect: { '': { } }
+		}),
+
+		getBoardInfo: _luci2.rpc.declare({
+			object: 'system',
+			method: 'board',
+			expect: { '': { } }
+		}),
+
+		getDiskInfo: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'diskfree',
+			expect: { '': { } }
+		}),
+
 		getInfo: function(cb)
 		{
-			return _luci2.rpc.call({
-				info:  [ 'system', 'info',  { } ],
-				board: [ 'system', 'board', { } ],
-				disk:  [ 'luci2.system', 'diskfree', { } ]
-			}).then(function(responses) {
+			_luci2.rpc.batch();
+
+			this.getSystemInfo();
+			this.getBoardInfo();
+			this.getDiskInfo();
+
+			return _luci2.rpc.flush().then(function(info) {
 				var rv = { };
 
-				if (responses.info[0] == 0)
-					$.extend(rv, responses.info[1]);
+				$.extend(rv, info[0]);
+				$.extend(rv, info[1]);
+				$.extend(rv, info[2]);
 
-				if (responses.board[0] == 0)
-					$.extend(rv, responses.board[1]);
-
-				if (responses.disk[0] == 0)
-					$.extend(rv, responses.disk[1]);
-
-				return retcb(cb, rv);
-			});
-		},
-
-		getProcessList: function(cb)
-		{
-			return rcall('luci2.system', 'process_list', undefined, 'processes', [ ], cb, function(rv) {
-				rv.sort(function(a, b) { return a.pid - b.pid });
 				return rv;
 			});
 		},
 
-		getSystemLog: function(cb)
-		{
-			return rcall('luci2.system', 'syslog', undefined, 'log', '', cb);
-		},
+		getProcessList: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'process_list',
+			expect: { processes: [ ] },
+			filter: function(data) {
+				data.sort(function(a, b) { return a.pid - b.pid });
+				return data;
+			}
+		}),
 
-		getKernelLog: function(cb)
-		{
-			return rcall('luci2.system', 'dmesg', undefined, 'log', '', cb);
-		},
+		getSystemLog: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'syslog',
+			expect: { log: '' }
+		}),
+
+		getKernelLog: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'dmesg',
+			expect: { log: '' }
+		}),
 
 		getZoneInfo: function(cb)
 		{
 			return $.getJSON(_luci2.globals.resource + '/zoneinfo.json', cb);
 		},
 
-		canSendSignal: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.system', 'process_signal', cb);
-		},
+		sendSignal: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'process_signal',
+			params: [ 'pid', 'signal' ],
+			filter: function(data) {
+				return (data == 0);
+			}
+		}),
 
-		sendSignal: function(pid, sig, cb)
-		{
-			return _luci2.rpc.call('luci2.system', 'process_signal', { pid: pid, signal: sig }).then(function(response) {
-				return retcb(cb, response[0] == 0);
-			});
-		},
-
-		initList: function(cb)
-		{
-			return rcall('luci2.system', 'init_list', undefined, 'initscripts', [ ], cb, function(rv) {
-				rv.sort(function(a, b) { return (a.start || 0) - (b.start || 0) });
-				return rv;
-			});
-		},
+		initList: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'init_list',
+			expect: { initscripts: [ ] },
+			filter: function(data) {
+				data.sort(function(a, b) { return (a.start || 0) - (b.start || 0) });
+				return data;
+			}
+		}),
 
 		initEnabled: function(init, cb)
 		{
-			return this.initList(function(list) {
+			return this.initList().then(function(list) {
 				for (var i = 0; i < list.length; i++)
 					if (list[i].name == init)
-						return retcb(cb, !!list[i].enabled);
+						return !!list[i].enabled;
 
-				return retcb(cb, false);
+				return false;
 			});
 		},
 
-		initRun: function(init, action, cb)
-		{
-			return _luci2.rpc.call('luci2.system', 'init_action', { name: init, action: action }).then(function(response) {
-				return retcb(cb, response[0] == 0);
-			});
-		},
-
-		canInitRun: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.system', 'init_action', cb);
-		},
+		initRun: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'init_action',
+			params: [ 'name', 'action' ],
+			filter: function(data) {
+				return (data == 0);
+			}
+		}),
 
 		initStart:   function(init, cb) { return _luci2.system.initRun(init, 'start',   cb) },
 		initStop:    function(init, cb) { return _luci2.system.initRun(init, 'stop',    cb) },
@@ -1172,242 +1184,266 @@ function LuCI2()
 		initDisable: function(init, cb) { return _luci2.system.initRun(init, 'disable', cb) },
 
 
-		getRcLocal: function(cb)
-		{
-			return rcall('luci2.system', 'rclocal_get', undefined, 'data', '', cb);
-		},
+		getRcLocal: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'rclocal_get',
+			expect: { data: '' }
+		}),
 
-		setRcLocal: function(data, cb)
-		{
-			return rcall('luci2.system', 'rclocal_set', { data: data }, undefined, undefined, cb);
-		},
-
-		canSetRcLocal: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.system', 'rclocal_set', cb);
-		},
+		setRcLocal: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'rclocal_set',
+			params: [ 'data' ]
+		}),
 
 
-		getCrontab: function(cb)
-		{
-			return rcall('luci2.system', 'crontab_get', undefined, 'data', '', cb);
-		},
+		getCrontab: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'crontab_get',
+			expect: { data: '' }
+		}),
 
-		setCrontab: function(data, cb)
-		{
-			return rcall('luci2.system', 'crontab_set', { data: data }, undefined, undefined, cb);
-		},
-
-		canSetCrontab: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.system', 'crontab_set', cb);
-		},
+		setCrontab: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'crontab_set',
+			params: [ 'data' ]
+		}),
 
 
-		getSSHKeys: function(cb)
-		{
-			return rcall('luci2.system', 'sshkeys_get', undefined, 'keys', [ ], cb);
-		},
+		getSSHKeys: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'sshkeys_get',
+			expect: { keys: [ ] }
+		}),
 
-		setSSHKeys: function(keys, cb)
-		{
-			return rcall('luci2.system', 'sshkeys_set', { keys: keys }, undefined, undefined, cb);
-		},
-
-		canSetSSHKeys: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.system', 'sshkeys_set', cb);
-		},
+		setSSHKeys: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'sshkeys_set',
+			params: [ 'keys' ]
+		}),
 
 
-		setPassword: function(user, pass, cb)
-		{
-			return rcall('luci2.system', 'password_set', { user: user, password: pass }, undefined, undefined, cb);
-		},
-
-		canSetPassword: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.system', 'password_set', cb);
-		},
+		setPassword: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'password_set',
+			params: [ 'user', 'password' ]
+		}),
 
 
-		listLEDs: function(cb)
-		{
-			return rcall('luci2.system', 'led_list', undefined, 'leds', [ ], cb);
-		},
+		listLEDs: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'led_list',
+			expect: { leds: [ ] }
+		}),
 
-		listUSBDevices: function(cb)
-		{
-			return rcall('luci2.system', 'usb_list', undefined, 'devices', [ ], cb);
-		},
-
-
-		testUpgrade: function(cb)
-		{
-			return rcall('luci2.system', 'upgrade_test', undefined, undefined, { }, cb);
-		},
-
-		startUpgrade: function(keep, cb)
-		{
-			return rcall('luci2.system', 'upgrade_start', { keep: !!keep }, undefined, undefined, cb);
-		},
-
-		cleanUpgrade: function(cb)
-		{
-			return rcall('luci2.system', 'upgrade_clean', undefined, undefined, undefined, cb);
-		},
-
-		canUpgrade: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.system', 'upgrade_start', cb);
-		},
+		listUSBDevices: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'usb_list',
+			expect: { devices: [ ] }
+		}),
 
 
-		restoreBackup: function(cb)
-		{
-			return rcall('luci2.system', 'backup_restore', undefined, undefined, undefined, cb);
-		},
+		testUpgrade: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'upgrade_test',
+			expect: { '': { } }
+		}),
 
-		cleanBackup: function(cb)
-		{
-			return rcall('luci2.system', 'backup_clean', undefined, undefined, undefined, cb);
-		},
+		startUpgrade: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'upgrade_start',
+			params: [ 'keep' ]
+		}),
 
-		canRestoreBackup: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.system', 'backup_restore', cb);
-		},
-
-
-		getBackupConfig: function(cb)
-		{
-			return rcall('luci2.system', 'backup_config_get', undefined, 'config', '', cb);
-		},
-
-		setBackupConfig: function(data, cb)
-		{
-			return rcall('luci2.system', 'backup_config_set', { data: data }, undefined, undefined, cb);
-		},
-
-		canSetBackupConfig: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.system', 'backup_config_set', cb);
-		},
+		cleanUpgrade: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'upgrade_clean'
+		}),
 
 
-		listBackup: function(cb)
-		{
-			return rcall('luci2.system', 'backup_list', undefined, 'files', [ ], cb);
-		},
+		restoreBackup: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'backup_restore'
+		}),
+
+		cleanBackup: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'backup_clean'
+		}),
 
 
-		performReboot: function(cb)
-		{
-			return rcall('luci2.system', 'reboot', undefined, undefined, undefined, cb);
-		},
+		getBackupConfig: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'backup_config_get',
+			expect: { config: '' }
+		}),
 
-		canPerformReboot: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.system', 'reboot', cb);
-		}
+		setBackupConfig: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'backup_config_set',
+			params: [ 'data' ]
+		}),
+
+
+		listBackup: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'backup_list',
+			expect: { files: [ ] }
+		}),
+
+
+		performReboot: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'reboot'
+		})
 	};
 
 	this.opkg = {
-		updateLists: function(cb)
-		{
-			return rcall('luci2.opkg', 'update', undefined, undefined, { }, cb);
-		},
+		updateLists: _luci2.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'update',
+			expect: { '': { } }
+		}),
 
-		_fetchPackages: function(action, offset, limit, pattern, cb)
+		_allPackages: _luci2.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'list',
+			params: [ 'offset', 'limit', 'pattern' ],
+			expect: { '': { } }
+		}),
+
+		_installedPackages: _luci2.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'list_installed',
+			params: [ 'offset', 'limit', 'pattern' ],
+			expect: { '': { } }
+		}),
+
+		_findPackages: _luci2.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'find',
+			params: [ 'offset', 'limit', 'pattern' ],
+			expect: { '': { } }
+		}),
+
+		_fetchPackages: function(action, offset, limit, pattern)
 		{
 			var packages = [ ];
-			var reqlimit = Math.min(limit, 100);
 
-			if (reqlimit <= 0)
-				reqlimit = 100;
+			return action(offset, limit, pattern).then(function(list) {
+				if (!list.total || !list.packages)
+					return { length: 0, total: 0 };
 
-			return _luci2.rpc.call('luci2.opkg', action, { offset: offset, limit: reqlimit, pattern: pattern }).then(function(response) {
-				if (response[0] != 0 || !response[1] || !response[1].total)
-					return retcb(cb, { length: 0, total: 0 });
-
-				packages.push.apply(packages, response[1].packages);
-				packages.total = response[1].total;
+				packages.push.apply(packages, list.packages);
+				packages.total = list.total;
 
 				if (limit <= 0)
-					limit = response[1].total;
+					limit = list.total;
 
 				if (packages.length >= limit)
-					return retcb(cb, packages);
+					return packages;
 
-				var requests = [ ];
+				_luci2.rpc.batch();
+
 				for (var i = offset + packages.length; i < limit; i += 100)
-					requests.push(['luci2.opkg', action, { offset: i, limit: (Math.min(i + 100, limit) % 100) || 100, pattern: pattern }]);
+					action(i, (Math.min(i + 100, limit) % 100) || 100, pattern);
 
-				return _luci2.rpc.call(requests);
-			}).then(function(responses) {
-				for (var key in responses)
+				return _luci2.rpc.flush();
+			}).then(function(lists) {
+				for (var i = 0; i < lists.length; i++)
 				{
-					var response = responses[key];
-
-					if (response[0] != 0 || !response[1] || !response[1].packages)
+					if (!lists[i].total || !lists[i].packages)
 						continue;
 
-					packages.push.apply(packages, response[1].packages);
-					packages.total = response[1].total;
+					packages.push.apply(packages, lists[i].packages);
+					packages.total = lists[i].total;
 				}
 
-				return retcb(cb, packages);
+				return packages;
 			});
 		},
 
-		listPackages: function(offset, limit, pattern, cb)
+		listPackages: function(offset, limit, pattern)
 		{
-			return _luci2.opkg._fetchPackages('list', offset, limit, pattern, cb);
+			return _luci2.opkg._fetchPackages(_luci2.opkg._allPackages, offset, limit, pattern);
 		},
 
-		installedPackages: function(offset, limit, pattern, cb)
+		installedPackages: function(offset, limit, pattern)
 		{
-			return _luci2.opkg._fetchPackages('list_installed', offset, limit, pattern, cb);
+			return _luci2.opkg._fetchPackages(_luci2.opkg._installedPackages, offset, limit, pattern);
 		},
 
-		findPackages: function(offset, limit, pattern, cb)
+		findPackages: function(offset, limit, pattern)
 		{
-			return _luci2.opkg._fetchPackages('find', offset, limit, pattern, cb);
+			return _luci2.opkg._fetchPackages(_luci2.opkg._findPackages, offset, limit, pattern);
 		},
 
-		installPackage: function(name, cb)
+		installPackage: _luci2.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'install',
+			params: [ 'package' ],
+			expect: { '': { } }
+		}),
+
+		removePackage: _luci2.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'remove',
+			params: [ 'package' ],
+			expect: { '': { } }
+		}),
+
+		getConfig: _luci2.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'config_get',
+			expect: { config: '' }
+		}),
+
+		setConfig: _luci2.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'config_set',
+			params: [ 'data' ]
+		})
+	};
+
+	this.session = {
+
+		login: _luci2.rpc.declare({
+			object: 'session',
+			method: 'login',
+			params: [ 'username', 'password' ],
+			expect: { '': { } }
+		}),
+
+		access: _luci2.rpc.declare({
+			object: 'session',
+			method: 'access',
+			params: [ 'scope', 'object', 'function' ],
+			expect: { access: false }
+		}),
+
+		isAlive: function()
 		{
-			return rcall('luci2.opkg', 'install', { 'package': name }, undefined, { }, cb);
+			return _luci2.session.access('ubus', 'session', 'access');
 		},
 
-		removePackage: function(name, cb)
+		startHeartbeat: function()
 		{
-			return rcall('luci2.opkg', 'remove', { 'package': name }, undefined, { }, cb);
+			this._hearbeatInterval = window.setInterval(function() {
+				_luci2.session.isAlive(function(alive) {
+					if (!alive)
+					{
+						_luci2.session.stopHeartbeat();
+						_luci2.ui.login(true);
+					}
+
+				});
+			}, _luci2.globals.timeout * 2);
 		},
 
-		getConfig: function(cb)
+		stopHeartbeat: function()
 		{
-			return rcall('luci2.opkg', 'config_get', undefined, 'config', '', cb);
-		},
-
-		setConfig: function(data, cb)
-		{
-			return rcall('luci2.opkg', 'config_set', { data: data }, undefined, undefined, cb);
-		},
-
-		canInstallPackage: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.opkg', 'install', cb);
-		},
-
-		canRemovePackage: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.opkg', 'remove', cb);
-		},
-
-		canSetConfig: function(cb)
-		{
-			return _luci2.rpc.access('ubus', 'luci2.opkg', 'config_set', cb);
+			if (typeof(this._hearbeatInterval) != 'undefined')
+				window.clearInterval(this._hearbeatInterval);
 		}
 	};
 
@@ -1676,8 +1712,8 @@ function LuCI2()
 			//}).then(function() {
 				images.on('load', function() {
 					var url = this.getAttribute('url');
-					_luci2.rpc.access('ubus', 'session', 'access').then(function(response) {
-						if (response[0] == 0)
+					_luci2.session.isAlive().then(function(access) {
+						if (access)
 						{
 							window.clearTimeout(timeout);
 							window.clearInterval(interval);
@@ -1720,8 +1756,8 @@ function LuCI2()
 			if (sid && sid.match(/^[a-f0-9]{32}$/))
 			{
 				_luci2.globals.sid = sid;
-				_luci2.rpc.access('ubus', 'session', 'access').then(function(response) {
-					if (response[0] == 0)
+				_luci2.session.isAlive().then(function(access) {
+					if (access)
 					{
 						_luci2._login_deferred.resolve();
 					}
@@ -1763,15 +1799,15 @@ function LuCI2()
 
 			var response_cb = _luci2._login_response_cb || (
 				_luci2._login_response_cb = function(response) {
-					if (!response.sid)
+					if (!response.ubus_rpc_session)
 					{
 						_luci2.ui.login(true);
 					}
 					else
 					{
-						_luci2.globals.sid = response.sid;
+						_luci2.globals.sid = response.ubus_rpc_session;
 						_luci2.setHash('id', _luci2.globals.sid);
-
+						_luci2.session.startHeartbeat();
 						_luci2.ui.dialog(false);
 						_luci2._login_deferred.resolve();
 					}
@@ -1799,7 +1835,8 @@ function LuCI2()
 						], { style: 'wait' }
 					);
 
-					rcall('session', 'login', { username: u, password: p }, undefined, { }, response_cb);
+					_luci2.globals.sid = '00000000000000000000000000000000';
+					_luci2.session.login(u, p).then(response_cb);
 				}
 			);
 
@@ -1816,17 +1853,99 @@ function LuCI2()
 			return _luci2._login_deferred;
 		},
 
-		renderMainMenu: function()
+
+		_acl_merge_scope: function(acl_scope, scope)
 		{
-			return rcall('luci2.ui', 'menu', undefined, 'menu', { }, function(entries) {
+			if ($.isArray(scope))
+			{
+				for (var i = 0; i < scope.length; i++)
+					acl_scope[scope[i]] = true;
+			}
+			else if ($.isPlainObject(scope))
+			{
+				for (var object_name in scope)
+				{
+					if (!$.isArray(scope[object_name]))
+						continue;
+
+					var acl_object = acl_scope[object_name] || (acl_scope[object_name] = { });
+
+					for (var i = 0; i < scope[object_name].length; i++)
+						acl_object[scope[object_name][i]] = true;
+				}
+			}
+		},
+
+		_acl_merge_permission: function(acl_perm, perm)
+		{
+			if ($.isPlainObject(perm))
+			{
+				for (var scope_name in perm)
+				{
+					var acl_scope = acl_perm[scope_name] || (acl_perm[scope_name] = { });
+					this._acl_merge_scope(acl_scope, perm[scope_name]);
+				}
+			}
+		},
+
+		_acl_merge_group: function(acl_group, group)
+		{
+			if ($.isPlainObject(group))
+			{
+				if (!acl_group.description)
+					acl_group.description = group.description;
+
+				if (group.read)
+				{
+					var acl_perm = acl_group.read || (acl_group.read = { });
+					this._acl_merge_permission(acl_perm, group.read);
+				}
+
+				if (group.write)
+				{
+					var acl_perm = acl_group.write || (acl_group.write = { });
+					this._acl_merge_permission(acl_perm, group.write);
+				}
+			}
+		},
+
+		_acl_merge_tree: function(acl_tree, tree)
+		{
+			if ($.isPlainObject(tree))
+			{
+				for (var group_name in tree)
+				{
+					var acl_group = acl_tree[group_name] || (acl_tree[group_name] = { });
+					this._acl_merge_group(acl_group, tree[group_name]);
+				}
+			}
+		},
+
+		listAvailableACLs: _luci2.rpc.declare({
+			object: 'luci2.ui',
+			method: 'acls',
+			expect: { acls: [ ] },
+			filter: function(trees) {
+				var acl_tree = { };
+				for (var i = 0; i < trees.length; i++)
+					_luci2.ui._acl_merge_tree(acl_tree, trees[i]);
+				return acl_tree;
+			}
+		}),
+
+		renderMainMenu: _luci2.rpc.declare({
+			object: 'luci2.ui',
+			method: 'menu',
+			expect: { menu: { } },
+			filter: function(entries) {
 				_luci2.globals.mainMenu = new _luci2.ui.menu();
 				_luci2.globals.mainMenu.entries(entries);
 
 				$('#mainmenu')
 					.empty()
 					.append(_luci2.globals.mainMenu.render(0, 1));
-			});
-		},
+			}
+		}),
 
 		renderViewMenu: function()
 		{
@@ -2105,11 +2224,11 @@ function LuCI2()
 
 		row: function(values)
 		{
-			if (isa(values, 'Array'))
+			if ($.isArray(values))
 			{
 				this._rows.push(values);
 			}
-			else if (isa(values, 'Object'))
+			else if ($.isPlainObject(values))
 			{
 				var v = [ ];
 				for (var i = 0; i < this.options.columns.length; i++)
@@ -4790,16 +4909,11 @@ function LuCI2()
 
 			packages[this.uci_package] = true;
 
-			for (var p in packages)
-				packages[p] = ['uci', 'get', { config: p }];
-
-			var load_cb = this._load_cb || (this._load_cb = $.proxy(function(responses) {
-				for (var p in responses)
+			var load_cb = this._load_cb || (this._load_cb = $.proxy(function(packages) {
+				for (var i = 0; i < packages.length; i++)
 				{
-					if (responses[p][0] != 0 || !responses[p][1] || !responses[p][1].values)
-						continue;
-
-					this.uci.values[p] = responses[p][1].values;
+					this.uci.values[packages[i]['.package']] = packages[i];
+					delete packages[i]['.package'];
 				}
 
 				var deferreds = [ _luci2.deferrable(this.options.prepare()) ];
@@ -4815,7 +4929,7 @@ function LuCI2()
 						for (var j = 0; j < s.length; j++)
 						{
 							var rv = this.sections[i].fields[f].load(s[j]['.name']);
-							if (_luci2.deferred(rv))
+							if (_luci2.isDeferred(rv))
 								deferreds.push(rv);
 						}
 					}
@@ -4824,7 +4938,12 @@ function LuCI2()
 				return $.when.apply($, deferreds);
 			}, this));
 
-			return _luci2.rpc.call(packages).then(load_cb);
+			_luci2.rpc.batch();
+
+			for (var pkg in packages)
+				_luci2.uci.get_all(pkg);
+
+			return _luci2.rpc.flush().then(load_cb);
 		},
 
 		render: function()
@@ -5148,7 +5267,7 @@ function LuCI2()
 					for (var j = 0; j < s.length; j++)
 					{
 						var rv = this.sections[i].fields[f].save(s[j]['.name']);
-						if (_luci2.deferred(rv))
+						if (_luci2.isDeferred(rv))
 							deferreds.push(rv);
 					}
 				}
@@ -5163,7 +5282,7 @@ function LuCI2()
 				return _luci2.deferrable();
 
 			var send_cb = this._send_cb || (this._send_cb = $.proxy(function() {
-				var requests = [ ];
+				_luci2.rpc.batch();
 
 				if (this.uci.creates)
 					for (var c in this.uci.creates)
@@ -5183,31 +5302,24 @@ function LuCI2()
 								else if (k.charAt(0) != '.')
 									r.values[k] = this.uci.creates[i][k];
 							}
-							requests.push(['uci', 'add', r]);
+
+							_luci2.uci.add(r.config, r.type, r.name, r.values);
 						}
 
 				if (this.uci.changes)
 					for (var c in this.uci.changes)
 						for (var s in this.uci.changes[c])
-							requests.push(['uci', 'set', {
-								config:  c,
-								section: s,
-								values:  this.uci.changes[c][s]
-							}]);
+							_luci2.uci.set(c, s, this.uci.changes[c][s]);
 
 				if (this.uci.deletes)
 					for (var c in this.uci.deletes)
 						for (var s in this.uci.deletes[c])
 						{
 							var o = this.uci.deletes[c][s];
-							requests.push(['uci', 'delete', {
-								config:  c,
-								section: s,
-								options: (o === true) ? undefined : o
-							}]);
+							_luci2.uci['delete'](c, s, (o === true) ? undefined : o);
 						}
 
-				return _luci2.rpc.call(requests);
+				return _luci2.rpc.flush();
 			}, this));
 
 			var self = this;

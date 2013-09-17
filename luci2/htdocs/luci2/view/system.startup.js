@@ -1,10 +1,12 @@
 L.ui.view.extend({
     title: L.tr('Startup'),
     execute: function() {
-        var allow_write = this.options.acls.startup;
+        var self = this;
+        var redraw = function() { return self.execute(); };
+        var allow_write = self.options.acls.startup;
 
         return $.when(
-            L.system.initList(function(list) {
+            L.system.initList().then(function(list) {
                 /* filter init scripts with no start prio */
                 for (var i = 0; i < list.length; i++)
                 {
@@ -35,9 +37,9 @@ L.ui.view.extend({
                                 .click(function() {
                                     L.ui.loading(true);
                                     if (v)
-                                        L.system.initDisable(this.getAttribute('name')).then(renderInitlist);
+                                        L.system.initDisable(this.getAttribute('name')).then(redraw);
                                     else
-                                        L.system.initEnable(this.getAttribute('name')).then(renderInitlist);
+                                        L.system.initEnable(this.getAttribute('name')).then(redraw);
                                 });
                         }
                     }, {
@@ -52,7 +54,7 @@ L.ui.view.extend({
                                 .text(L.trc('Init script action', 'Restart'))
                                 .click(function() {
                                     L.ui.loading(true);
-                                    L.system.initRestart(this.getAttribute('name')).then(renderInitlist)
+                                    L.system.initRestart(this.getAttribute('name')).then(redraw)
                                 });
                         }
                     }, {
@@ -67,7 +69,7 @@ L.ui.view.extend({
                                 .text(L.trc('Init script action', 'Stop'))
                                 .click(function() {
                                     L.ui.loading(true);
-                                    L.system.initStop(this.getAttribute('name')).then(renderInitlist)
+                                    L.system.initStop(this.getAttribute('name')).then(redraw)
                                 });
                         }
                     } ]
@@ -78,14 +80,14 @@ L.ui.view.extend({
 
                 L.ui.loading(false);
             }),
-            L.system.getRcLocal(function(data) {
+            L.system.getRcLocal().then(function(data) {
                 $('#maps').accordion({ heightStyle: 'content' });
 
                 $('textarea').val(data).attr('disabled', !allow_write);
                 $('input.cbi-button-save').attr('disabled', !allow_write).click(function() {
                     var data = ($('textarea').val() || '').replace(/\r/g, '').replace(/\n?$/, '\n');
                     L.ui.loading(true);
-                    L.system.setRcLocal(data, function() {
+                    L.system.setRcLocal(data).then(function() {
                         $('textarea').val(data);
                         L.ui.loading(false);
                     });

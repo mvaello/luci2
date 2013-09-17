@@ -1,7 +1,7 @@
 L.ui.view.extend({
 	updateDiskSpace: function()
 	{
-		return L.system.getInfo(function(info) {
+		return L.system.getDiskInfo().then(function(info) {
 			$('#package_space').empty().append(
 				new L.ui.progress({
 					value:  info.root.used / 1024,
@@ -30,7 +30,7 @@ L.ui.view.extend({
 				L.ui.dialog(title, L.tr('Waiting for package manager …'), { style: 'wait' });
 
 				action(name || pkgname).then(function(res) {
-					self.fetchInstalledList().then(function() { return fetchPackageList(); }).then(function() {
+					self.fetchInstalledList().then(function() { return self.fetchPackageList(); }).then(function() {
 						var output = [ ];
 
 						if (res.stdout)
@@ -54,11 +54,11 @@ L.ui.view.extend({
 	fetchInstalledList: function()
 	{
 		var self = this;
-		return L.opkg.installedPackages(0, 0, '*', function(list) {
+		return L.opkg.installedPackages(0, 0, '*').then(function(list) {
 			self.installedList = { };
 			for (var i = 0; i < list.length; i++)
 				self.installedList[list[i][0]] = true;
-		})
+		});
 	},
 
 	fetchPackageList: function(offset, interactive)
@@ -92,7 +92,7 @@ L.ui.view.extend({
 		var install_disabled = $('#package_install').attr('disabled');
 		var self = this;
 
-		return action(offset, 100, pattern, function(list) {
+		return action(offset, 100, pattern).then(function(list) {
 			var packageTable = new L.ui.table({
 				placeholder: L.tr('No matching packages found.'),
 				columns: [ {
@@ -162,7 +162,7 @@ L.ui.view.extend({
 		$('#package_update, #package_url, #package_install').attr('disabled', !this.options.acls.software);
 
 		return $.when(
-			L.opkg.getConfig(function(config) {
+			L.opkg.getConfig().then(function(config) {
 				$('textarea')
 					.attr('rows', (config.match(/\n/g) || [ ]).length + 1)
 					.val(config);
@@ -171,7 +171,7 @@ L.ui.view.extend({
 					.click(function() {
 						var data = ($('textarea').val() || '').replace(/\r/g, '').replace(/\n?$/, '\n');
 						L.ui.loading(true);
-						L.opkg.setConfig(data, function() {
+						L.opkg.setConfig(data).then(function() {
 							$('textarea')
 								.attr('rows', (data.match(/\n/g) || [ ]).length + 1)
 								.val(data);
@@ -232,7 +232,7 @@ L.ui.view.extend({
 
 			$('#package_update').click(function(ev) {
 				L.ui.dialog(L.tr('Updating package lists'), L.tr('Waiting for package manager …'), { style: 'wait' });
-				L.opkg.updateLists(function(res) {
+				L.opkg.updateLists().then(function(res) {
 					var output = [ ];
 
 					if (res.stdout)
