@@ -16,6 +16,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#define _GNU_SOURCE /* crypt() */
+
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
@@ -2136,6 +2138,29 @@ rpc_luci2_ui_acls(struct ubus_context *ctx, struct ubus_object *obj,
 	return 0;
 }
 
+static int
+rpc_luci2_ui_crypt(struct ubus_context *ctx, struct ubus_object *obj,
+                   struct ubus_request_data *req, const char *method,
+                   struct blob_attr *msg)
+{
+	char *hash;
+	struct blob_attr *tb[__RPC_D_MAX];
+
+	blobmsg_parse(rpc_data_policy, __RPC_D_MAX, tb,
+	              blob_data(msg), blob_len(msg));
+
+	if (!tb[RPC_D_DATA] || blobmsg_data_len(tb[RPC_D_DATA]) >= 128)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	hash = crypt(blobmsg_get_string(tb[RPC_D_DATA]), "$1$");
+
+	blob_buf_init(&buf, 0);
+	blobmsg_add_string(&buf, "crypt", hash);
+
+	ubus_send_reply(ctx, req, buf.head);
+	return 0;
+}
+
 
 static int
 rpc_luci2_api_init(const struct rpc_daemon_ops *o, struct ubus_context *ctx)
@@ -2242,7 +2267,9 @@ rpc_luci2_api_init(const struct rpc_daemon_ops *o, struct ubus_context *ctx)
 
 	static const struct ubus_method luci2_ui_methods[] = {
 		UBUS_METHOD_NOARG("menu",            rpc_luci2_ui_menu),
-		UBUS_METHOD_NOARG("acls",            rpc_luci2_ui_acls)
+		UBUS_METHOD_NOARG("acls",            rpc_luci2_ui_acls),
+		UBUS_METHOD("crypt",                 rpc_luci2_ui_crypt,
+		                                     rpc_data_policy)
 	};
 
 	static struct ubus_object_type luci2_ui_type =

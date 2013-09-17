@@ -11,8 +11,13 @@ IF(APPLE)
   LINK_DIRECTORIES(/opt/local/lib)
 ENDIF()
 
+FIND_LIBRARY(crypt NAMES crypt)
+IF(crypt STREQUAL "LIBS-NOTFOUND")
+  SET(crypt "")
+ENDIF()
+
 ADD_LIBRARY(luci2-plugin MODULE luci2.c)
-TARGET_LINK_LIBRARIES(luci2-plugin ubox ubus)
+TARGET_LINK_LIBRARIES(luci2-plugin ubox ubus ${crypt})
 SET_TARGET_PROPERTIES(luci2-plugin PROPERTIES OUTPUT_NAME luci2 PREFIX "")
 
 INSTALL(TARGETS luci2-plugin LIBRARY DESTINATION lib)
