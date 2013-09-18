@@ -1857,6 +1857,13 @@ function LuCI2()
 			return _luci2._login_deferred;
 		},
 
+		cryptPassword: _luci2.rpc.declare({
+			object: 'luci2.ui',
+			method: 'crypt',
+			params: [ 'data' ],
+			expect: { crypt: '' }
+		}),
+
 
 		_acl_merge_scope: function(acl_scope, scope)
 		{
