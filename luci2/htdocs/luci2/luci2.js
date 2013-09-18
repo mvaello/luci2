@@ -2984,7 +2984,7 @@ function LuCI2()
 	};
 
 
-	var AbstractValue = AbstractWidget.extend({
+	this.cbi.AbstractValue = AbstractWidget.extend({
 		init: function(name, options)
 		{
 			this.name = name;
@@ -3250,11 +3250,11 @@ function LuCI2()
 				{
 					if (typeof(d[i]) == 'string')
 						dep[d[i]] = true;
-					else if (d[i] instanceof AbstractValue)
+					else if (d[i] instanceof _luci2.cbi.AbstractValue)
 						dep[d[i].name] = true;
 				}
 			}
-			else if (d instanceof AbstractValue)
+			else if (d instanceof _luci2.cbi.AbstractValue)
 			{
 				dep = { };
 				dep[d.name] = (typeof(v) == 'undefined') ? true : v;
@@ -3362,7 +3362,7 @@ function LuCI2()
 		}
 	});
 
-	this.cbi.CheckboxValue = AbstractValue.extend({
+	this.cbi.CheckboxValue = this.cbi.AbstractValue.extend({
 		widget: function(sid)
 		{
 			var o = this.options;
@@ -3427,7 +3427,7 @@ function LuCI2()
 		}
 	});
 
-	this.cbi.InputValue = AbstractValue.extend({
+	this.cbi.InputValue = this.cbi.AbstractValue.extend({
 		widget: function(sid)
 		{
 			var i = $('<input />')
@@ -3440,7 +3440,7 @@ function LuCI2()
 		}
 	});
 
-	this.cbi.PasswordValue = AbstractValue.extend({
+	this.cbi.PasswordValue = this.cbi.AbstractValue.extend({
 		widget: function(sid)
 		{
 			var i = $('<input />')
@@ -3469,7 +3469,7 @@ function LuCI2()
 		}
 	});
 
-	this.cbi.ListValue = AbstractValue.extend({
+	this.cbi.ListValue = this.cbi.AbstractValue.extend({
 		widget: function(sid)
 		{
 			var s = $('<select />');
@@ -3564,7 +3564,7 @@ function LuCI2()
 		}
 	});
 
-	this.cbi.ComboBox = AbstractValue.extend({
+	this.cbi.ComboBox = this.cbi.AbstractValue.extend({
 		_change: function(ev)
 		{
 			var s = ev.target;
@@ -3933,7 +3933,7 @@ function LuCI2()
 		}
 	});
 
-	this.cbi.DummyValue = AbstractValue.extend({
+	this.cbi.DummyValue = this.cbi.AbstractValue.extend({
 		widget: function(sid)
 		{
 			return $('<div />')
@@ -3948,7 +3948,7 @@ function LuCI2()
 		}
 	});
 
-	this.cbi.NetworkList = AbstractValue.extend({
+	this.cbi.NetworkList = this.cbi.AbstractValue.extend({
 		load: function(sid)
 		{
 			var self = this;
@@ -4111,7 +4111,7 @@ function LuCI2()
 	});
 
 
-	var AbstractSection = AbstractWidget.extend({
+	this.cbi.AbstractSection = AbstractWidget.extend({
 		id: function()
 		{
 			var s = [ arguments[0], this.map.uci_package, this.uci_type ];
@@ -4161,7 +4161,7 @@ function LuCI2()
 
 			var w = widget ? new widget(name, options) : null;
 
-			if (!(w instanceof AbstractValue))
+			if (!(w instanceof _luci2.cbi.AbstractValue))
 				throw 'Widget must be an instance of AbstractValue';
 
 			w.section = this;
@@ -4257,7 +4257,7 @@ function LuCI2()
 		}
 	});
 
-	this.cbi.TypedSection = AbstractSection.extend({
+	this.cbi.TypedSection = this.cbi.AbstractSection.extend({
 		init: function(uci_type, options)
 		{
 			this.uci_type = uci_type;
@@ -4388,9 +4388,9 @@ function LuCI2()
 					for (var i = 0; i < this.options.teasers.length; i++)
 					{
 						var f = this.options.teasers[i];
-						if (f instanceof AbstractValue)
+						if (f instanceof _luci2.cbi.AbstractValue)
 							tf.push(f);
-						else if (typeof(f) == 'string' && this.fields[f] instanceof AbstractValue)
+						else if (typeof(f) == 'string' && this.fields[f] instanceof _luci2.cbi.AbstractValue)
 							tf.push(this.fields[f]);
 					}
 				}
@@ -5061,7 +5061,7 @@ function LuCI2()
 		{
 			var w = widget ? new widget(uci_type, options) : null;
 
-			if (!(w instanceof AbstractSection))
+			if (!(w instanceof _luci2.cbi.AbstractSection))
 				throw 'Widget must be an instance of AbstractSection';
 
 			w.map = this;
