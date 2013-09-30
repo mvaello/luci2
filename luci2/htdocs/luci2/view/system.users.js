@@ -296,7 +296,7 @@ L.ui.view.extend({
 
             var o = s.option(self.aclTable, '__acls', {
                 caption:     L.tr('User ACLs'),
-                description: L.tr('Specifies the access levels of this account. The "-" column means no access, "R" stands for read only access and "F" for full access.')
+                description: L.tr('Specifies the access levels of this account. The "N" column means no access, "R" stands for read only access and "F" for full access.')
             });
 
             var groups = [ ];
