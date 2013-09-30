@@ -1,4 +1,15 @@
 {
+	"unauthenticated": {
+		"description": "Functions allowed for unauthenticated requests",
+		"read": {
+			"ubus": {
+				"luci2.ui": [
+					"themes"
+				]
+			}
+		}
+	},
+
 	"core": {
 		"description": "Core functions for LuCI",
 		"read": {
@@ -7,7 +18,8 @@
 					"*"
 				],
 				"session": [
-					"access"
+					"access",
+					"destroy"
 				],
 				"uci": [
 					"*"
@@ -106,6 +118,20 @@
 			},
 			"uci": [
 				"dropbear"
+			]
+		}
+	},
+
+	"users": {
+		"description": "Guest login settings",
+		"read": {
+			"uci": [
+				"rpcd"
+			]
+		},
+		"write": {
+			"uci": [
+				"rpcd"
 			]
 		}
 	},

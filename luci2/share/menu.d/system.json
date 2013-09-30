@@ -15,28 +15,34 @@
         "view": "system/admin",
         "index": 20
     },
+    "system/users": {
+        "title": "Guest Logins",
+        "acls": [ "users" ],
+        "view": "system/users",
+        "index": 30
+    },
     "system/software": {
         "title": "Software",
         "acls": [ "software" ],
         "view": "system/software",
-        "index": 30
+        "index": 40
     },
     "system/startup": {
         "title": "Startup",
         "acls": [ "startup" ],
         "view": "system/startup",
-        "index": 40
+        "index": 50
     },
     "system/cron": {
         "title": "Scheduled Tasks",
         "acls": [ "cron" ],
         "view": "system/cron",
-        "index": 50
+        "index": 60
     },
     "system/leds": {
         "title": "LED Configuration",
         "acls": [ "leds" ],
         "view": "system/leds",
-        "index": 60
+        "index": 70
     }
 }
