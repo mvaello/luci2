@@ -223,7 +223,8 @@ L.ui.view.extend({
             var m = new L.cbi.Map('rpcd', {
                 caption:     L.tr('Guest Logins'),
                 description: L.tr('Manage user accounts and permissions for accessing the LuCI ui.'),
-                collabsible: true
+                collabsible: true,
+                readonly:    !self.options.acls.users
             });
 
             var s = m.section(L.cbi.TypedSection, 'login', {
