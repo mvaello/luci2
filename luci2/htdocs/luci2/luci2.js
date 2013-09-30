@@ -1979,13 +1979,22 @@ function LuCI2()
 			if (_luci2._views[name] instanceof _luci2.ui.view)
 				return _luci2._views[name].render();
 
-			return $.ajax(_luci2.globals.resource + '/view/' + name + '.js', {
+			var url = _luci2.globals.resource + '/view/' + name + '.js';
+
+			return $.ajax(url, {
 				method: 'GET',
 				cache: true,
 				dataType: 'text'
 			}).then(function(data) {
 				try {
-					var viewConstructor = (new Function(['L', '$'], 'return ' + data))(_luci2, $);
+					var viewConstructorSource = (
+						'(function(L, $) {\n' +
+							'return %s' +
+						'})(_luci2, $);\n\n' +
+						'//@ sourceURL=%s'
+					).format(data, url);
+
+					var viewConstructor = eval(viewConstructorSource);
 
 					_luci2._views[name] = new viewConstructor({
 						name: name,
@@ -1994,7 +2003,9 @@ function LuCI2()
 
 					return _luci2._views[name].render();
 				}
-				catch(e) { };
+				catch(e) {
+					alert('Unable to instantiate view "%s": %s'.format(url, e));
+				};
 
 				return $.Deferred().resolve();
 			});
