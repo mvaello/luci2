@@ -1452,6 +1452,21 @@ function LuCI2()
 
 	this.ui = {
 
+		saveScrollTop: function()
+		{
+			this._scroll_top = $(document).scrollTop();
+		},
+
+		restoreScrollTop: function()
+		{
+			if (typeof(this._scroll_top) == 'undefined')
+				return;
+
+			$(document).scrollTop(this._scroll_top);
+
+			delete this._scroll_top;
+		},
+
 		loading: function(enable)
 		{
 			var win = $(window);
@@ -4323,10 +4338,14 @@ function LuCI2()
 			if (addb.prop('disabled') || name === '')
 				return;
 
+			_luci2.ui.saveScrollTop();
+
 			self.active_panel = -1;
 			self.map.save();
 			self.add(name);
 			self.map.redraw();
+
+			_luci2.ui.restoreScrollTop();
 		},
 
 		_remove: function(ev)
@@ -4334,9 +4353,16 @@ function LuCI2()
 			var self = ev.data.self;
 			var sid  = ev.data.sid;
 
+			if (ev.data.index == (self.sections().length - 1))
+				self.active_panel = -1;
+
+			_luci2.ui.saveScrollTop();
+
 			self.map.save();
 			self.remove(sid);
 			self.map.redraw();
+
+			_luci2.ui.restoreScrollTop();
 
 			ev.stopPropagation();
 		},
@@ -4480,7 +4506,7 @@ function LuCI2()
 			return add;
 		},
 
-		_render_remove: function(sid)
+		_render_remove: function(sid, index)
 		{
 			var text = _luci2.tr('Remove');
 			var ttip = _luci2.tr('Remove this section');
@@ -4495,7 +4521,7 @@ function LuCI2()
 				.addClass('cbi-button')
 				.addClass('cbi-button-remove')
 				.val(text).attr('title', ttip)
-				.click({ self: this, sid: sid }, this._remove);
+				.click({ self: this, sid: sid, index: index }, this._remove);
 		},
 
 		_render_caption: function(sid)
@@ -4579,7 +4605,7 @@ function LuCI2()
 					$('<div />')
 						.addClass('cbi-section-remove')
 						.addClass('right')
-						.append(this._render_remove(sid))
+						.append(this._render_remove(sid, panel_index))
 						.appendTo(head);
 
 				var body = $('<div />')
@@ -4922,7 +4948,8 @@ function LuCI2()
 				deletes: { }
 			};
 
-			this.active_panel = 0;
+			if (typeof(this.active_panel) == 'undefined')
+				this.active_panel = 0;
 
 			var packages = { };
 
@@ -5346,6 +5373,7 @@ function LuCI2()
 
 			var self = this;
 
+			_luci2.ui.saveScrollTop();
 			_luci2.ui.loading(true);
 
 			return this.save().then(send_cb).then(function() {
@@ -5355,6 +5383,7 @@ function LuCI2()
 				self = null;
 
 				_luci2.ui.loading(false);
+				_luci2.ui.restoreScrollTop();
 			});
 		},
 
