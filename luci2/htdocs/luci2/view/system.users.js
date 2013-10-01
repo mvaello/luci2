@@ -223,7 +223,6 @@ L.ui.view.extend({
             var m = new L.cbi.Map('rpcd', {
                 caption:     L.tr('Guest Logins'),
                 description: L.tr('Manage user accounts and permissions for accessing the LuCI ui.'),
-                collabsible: true,
                 readonly:    !self.options.acls.users
             });
 
@@ -232,6 +231,7 @@ L.ui.view.extend({
                     var u = sid ? this.fields.username.textvalue(sid) : undefined;
                     return u ? L.tr('Login "%s"').format(u) : L.tr('New login');
                 },
+                collabsible:  true,
                 addremove:    true,
                 add_caption:  L.tr('Add new user …'),
                 teasers:      [ '__shadow', '__acls' ]
@@ -277,6 +277,9 @@ L.ui.view.extend({
             shadow.save = password.save = function(sid) {
                 var sh = this.section.fields.__shadow.formvalue(sid);
                 var pw = this.section.fields.password.formvalue(sid);
+
+                if (!sh && !pw)
+                    return;
 
                 if (sh)
                     pw = '$p$' + this.section.fields.username.formvalue(sid);
