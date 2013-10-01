@@ -2026,11 +2026,20 @@ function LuCI2()
 			});
 		},
 
+		updateHostname: function()
+		{
+			return _luci2.system.getBoardInfo().then(function(info) {
+				if (info.hostname)
+					$('#hostname').text(info.hostname);
+			});
+		},
+
 		init: function()
 		{
 			_luci2.ui.loading(true);
 
 			$.when(
+				_luci2.ui.updateHostname(),
 				_luci2.ui.renderMainMenu()
 			).then(function() {
 				_luci2.ui.renderView(_luci2.globals.defaultNode).then(function() {
