@@ -27,22 +27,28 @@
         "view": "system/software",
         "index": 40
     },
+    "system/upgrade": {
+        "title": "Backup / Upgrade",
+        "acls": [ "backup", "upgrade" ],
+        "view": "system/upgrade",
+        "index": 50
+    },
     "system/startup": {
         "title": "Startup",
         "acls": [ "startup" ],
         "view": "system/startup",
-        "index": 50
+        "index": 60
     },
     "system/cron": {
         "title": "Scheduled Tasks",
         "acls": [ "cron" ],
         "view": "system/cron",
-        "index": 60
+        "index": 70
     },
     "system/leds": {
         "title": "LED Configuration",
         "acls": [ "leds" ],
         "view": "system/leds",
-        "index": 70
+        "index": 80
     }
 }
