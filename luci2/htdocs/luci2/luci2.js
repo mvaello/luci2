@@ -1471,12 +1471,13 @@ function LuCI2()
 		{
 			var win = $(window);
 			var body = $('body');
-			var div = _luci2._modal || (
-				_luci2._modal = $('<div />')
+
+			var state = _luci2.ui._loading || (_luci2.ui._loading = {
+				modal: $('<div />')
 					.addClass('cbi-modal-loader')
 					.append($('<div />').text(_luci2.tr('Loading data...')))
 					.appendTo(body)
-			);
+			});
 
 			if (enable)
 			{
@@ -1484,13 +1485,13 @@ function LuCI2()
 				body.css('padding', 0);
 				body.css('width', win.width());
 				body.css('height', win.height());
-				div.css('width', win.width());
-				div.css('height', win.height());
-				div.show();
+				state.modal.css('width', win.width());
+				state.modal.css('height', win.height());
+				state.modal.show();
 			}
 			else
 			{
-				div.hide();
+				state.modal.hide();
 				body.css('overflow', '');
 				body.css('padding', '');
 				body.css('width', '');
@@ -1502,8 +1503,9 @@ function LuCI2()
 		{
 			var win = $(window);
 			var body = $('body');
-			var div = _luci2._dialog || (
-				_luci2._dialog = $('<div />')
+
+			var state = _luci2.ui._dialog || (_luci2.ui._dialog = {
+				dialog: $('<div />')
 					.addClass('cbi-modal-dialog')
 					.append($('<div />')
 						.append($('<div />')
@@ -1525,7 +1527,7 @@ function LuCI2()
 									$(this).parent().parent().parent().hide();
 								}))))
 					.appendTo(body)
-			);
+			});
 
 			if (typeof(options) != 'object')
 				options = { };
@@ -1538,13 +1540,13 @@ function LuCI2()
 					.css('width', '')
 					.css('height', '');
 
-				_luci2._dialog.hide();
+				state.dialog.hide();
 
 				return;
 			}
 
-			var cnt = div.children().children('div.cbi-modal-dialog-body');
-			var ftr = div.children().children('div.cbi-modal-dialog-footer');
+			var cnt = state.dialog.children().children('div.cbi-modal-dialog-body');
+			var ftr = state.dialog.children().children('div.cbi-modal-dialog-footer');
 
 			ftr.empty();
 
@@ -1575,29 +1577,29 @@ function LuCI2()
 					.attr('disabled', true));
 			}
 
-			div.find('div.cbi-modal-dialog-header').text(title);
-			div.show();
+			state.dialog.find('div.cbi-modal-dialog-header').text(title);
+			state.dialog.show();
 
 			cnt
 				.css('max-height', Math.floor(win.height() * 0.70) + 'px')
 				.empty()
 				.append(content);
 
-			div.children()
-				.css('margin-top', -Math.floor(div.children().height() / 2) + 'px');
+			state.dialog.children()
+				.css('margin-top', -Math.floor(state.dialog.children().height() / 2) + 'px');
 
 			body.css('overflow', 'hidden');
 			body.css('padding', 0);
 			body.css('width', win.width());
 			body.css('height', win.height());
-			div.css('width', win.width());
-			div.css('height', win.height());
+			state.dialog.css('width', win.width());
+			state.dialog.css('height', win.height());
 		},
 
 		upload: function(title, content, options)
 		{
-			var form = _luci2._upload || (
-				_luci2._upload = $('<form />')
+			var state = _luci2.ui._upload || (_luci2.ui._upload = {
+				form: $('<form />')
 					.attr('method', 'post')
 					.attr('action', '/cgi-bin/luci-upload')
 					.attr('enctype', 'multipart/form-data')
@@ -1605,12 +1607,10 @@ function LuCI2()
 					.append($('<p />'))
 					.append($('<input />')
 						.attr('type', 'hidden')
-						.attr('name', 'sessionid')
-						.attr('value', _luci2.globals.sid))
+						.attr('name', 'sessionid'))
 					.append($('<input />')
 						.attr('type', 'hidden')
-						.attr('name', 'filename')
-						.attr('value', options.filename))
+						.attr('name', 'filename'))
 					.append($('<input />')
 						.attr('type', 'file')
 						.attr('name', 'filedata')
@@ -1625,11 +1625,9 @@ function LuCI2()
 						.attr('name', 'cbi-fileupload-frame')
 						.css('width', '1px')
 						.css('height', '1px')
-						.css('visibility', 'hidden'))
-			);
+						.css('visibility', 'hidden')),
 
-			var finish = _luci2._upload_finish_cb || (
-				_luci2._upload_finish_cb = function(ev) {
+				finish_cb: function(ev) {
 					$(this).off('load');
 
 					var body = (this.contentDocument || this.contentWindow.document).body;
@@ -1654,41 +1652,43 @@ function LuCI2()
 							$('<p />').text(_luci2.tr('In case of network problems try uploading the file again.'))
 						], { style: 'close' });
 					}
-					else if (typeof(ev.data.cb) == 'function')
+					else if (typeof(state.success_cb) == 'function')
 					{
-						ev.data.cb(json);
+						state.success_cb(json);
 					}
-				}
-			);
+				},
 
-			var confirm = _luci2._upload_confirm_cb || (
-				_luci2._upload_confirm_cb = function() {
-					var d = _luci2._upload;
-					var f = d.find('.cbi-input-file');
-					var b = d.find('.progressbar');
-					var p = d.find('p');
+				confirm_cb: function() {
+					var f = state.form.find('.cbi-input-file');
+					var b = state.form.find('.progressbar');
+					var p = state.form.find('p');
 
 					if (!f.val())
 						return;
 
-					d.find('iframe').on('load', { cb: options.success }, finish);
-					d.submit();
+					state.form.find('iframe').on('load', state.finish_cb);
+					state.form.submit();
 
 					f.hide();
 					b.show();
 					p.text(_luci2.tr('File upload in progress …'));
 
-					_luci2._dialog.find('button').prop('disabled', true);
+					state.form.parent().parent().find('button').prop('disabled', true);
 				}
-			);
+			});
 
-			_luci2._upload.find('.progressbar').hide();
-			_luci2._upload.find('.cbi-input-file').val('').show();
-			_luci2._upload.find('p').text(content || _luci2.tr('Select the file to upload and press "%s" to proceed.').format(_luci2.tr('Ok')));
+			state.form.find('.progressbar').hide();
+			state.form.find('.cbi-input-file').val('').show();
+			state.form.find('p').text(content || _luci2.tr('Select the file to upload and press "%s" to proceed.').format(_luci2.tr('Ok')));
 
-			_luci2.ui.dialog(title || _luci2.tr('File upload'), _luci2._upload, {
+			state.form.find('[name=sessionid]').val(_luci2.globals.sid);
+			state.form.find('[name=filename]').val(options.filename);
+
+			state.success_cb = options.success;
+
+			_luci2.ui.dialog(title || _luci2.tr('File upload'), state.form, {
 				style: 'confirm',
-				confirm: confirm
+				confirm: state.confirm_cb
 			});
 		},
 
@@ -1766,32 +1766,10 @@ function LuCI2()
 
 		login: function(invalid)
 		{
-			if (!_luci2._login_deferred || _luci2._login_deferred.state() != 'pending')
-				_luci2._login_deferred = $.Deferred();
-
-			/* try to find sid from hash */
-			var sid = _luci2.getHash('id');
-			if (sid && sid.match(/^[a-f0-9]{32}$/))
-			{
-				_luci2.globals.sid = sid;
-				_luci2.session.isAlive().then(function(access) {
-					if (access)
-					{
-						_luci2.session.startHeartbeat();
-						_luci2._login_deferred.resolve();
-					}
-					else
-					{
-						_luci2.setHash('id', undefined);
-						_luci2.ui.login();
-					}
-				});
-
-				return _luci2._login_deferred;
-			}
-
-			var form = _luci2._login || (
-				_luci2._login = $('<div />')
+			var state = _luci2.ui._login || (_luci2.ui._login = {
+				form: $('<form />')
+					.attr('target', '')
+					.attr('method', 'post')
 					.append($('<p />')
 						.addClass('alert-message')
 						.text(_luci2.tr('Wrong username or password given!')))
@@ -1803,7 +1781,11 @@ function LuCI2()
 								.attr('type', 'text')
 								.attr('name', 'username')
 								.attr('value', 'root')
-								.addClass('cbi-input-text'))))
+								.addClass('cbi-input-text')
+								.keypress(function(ev) {
+									if (ev.which == 10 || ev.which == 13)
+										state.confirm_cb();
+								}))))
 					.append($('<p />')
 						.append($('<label />')
 							.text(_luci2.tr('Password'))
@@ -1811,13 +1793,15 @@ function LuCI2()
 							.append($('<input />')
 								.attr('type', 'password')
 								.attr('name', 'password')
-								.addClass('cbi-input-password'))))
+								.addClass('cbi-input-password')
+								.keypress(function(ev) {
+									if (ev.which == 10 || ev.which == 13)
+										state.confirm_cb();
+								}))))
 					.append($('<p />')
-						.text(_luci2.tr('Enter your username and password above, then click "%s" to proceed.').format(_luci2.tr('Ok'))))
-			);
+						.text(_luci2.tr('Enter your username and password above, then click "%s" to proceed.').format(_luci2.tr('Ok')))),
 
-			var response_cb = _luci2._login_response_cb || (
-				_luci2._login_response_cb = function(response) {
+				response_cb: function(response) {
 					if (!response.ubus_rpc_session)
 					{
 						_luci2.ui.login(true);
@@ -1828,16 +1812,13 @@ function LuCI2()
 						_luci2.setHash('id', _luci2.globals.sid);
 						_luci2.session.startHeartbeat();
 						_luci2.ui.dialog(false);
-						_luci2._login_deferred.resolve();
+						state.deferred.resolve();
 					}
-				}
-			);
+				},
 
-			var confirm_cb = _luci2._login_confirm_cb || (
-				_luci2._login_confirm_cb = function() {
-					var d = _luci2._login;
-					var u = d.find('[name=username]').val();
-					var p = d.find('[name=password]').val();
+				confirm_cb: function() {
+					var u = state.form.find('[name=username]').val();
+					var p = state.form.find('[name=password]').val();
 
 					if (!u)
 						return;
@@ -1855,21 +1836,47 @@ function LuCI2()
 					);
 
 					_luci2.globals.sid = '00000000000000000000000000000000';
-					_luci2.session.login(u, p).then(response_cb);
+					_luci2.session.login(u, p).then(state.response_cb);
 				}
-			);
-
-			if (invalid)
-				form.find('.alert-message').show();
-			else
-				form.find('.alert-message').hide();
-
-			_luci2.ui.dialog(_luci2.tr('Authorization Required'), form, {
-				style: 'confirm',
-				confirm: confirm_cb
 			});
 
-			return _luci2._login_deferred;
+			if (!state.deferred || state.deferred.state() != 'pending')
+				state.deferred = $.Deferred();
+
+			/* try to find sid from hash */
+			var sid = _luci2.getHash('id');
+			if (sid && sid.match(/^[a-f0-9]{32}$/))
+			{
+				_luci2.globals.sid = sid;
+				_luci2.session.isAlive().then(function(access) {
+					if (access)
+					{
+						_luci2.session.startHeartbeat();
+						state.deferred.resolve();
+					}
+					else
+					{
+						_luci2.setHash('id', undefined);
+						_luci2.ui.login();
+					}
+				});
+
+				return state.deferred;
+			}
+
+			if (invalid)
+				state.form.find('.alert-message').show();
+			else
+				state.form.find('.alert-message').hide();
+
+			_luci2.ui.dialog(_luci2.tr('Authorization Required'), state.form, {
+				style: 'confirm',
+				confirm: state.confirm_cb
+			});
+
+			state.form.find('[name=password]').focus();
+
+			return state.deferred;
 		},
 
 		cryptPassword: _luci2.rpc.declare({
