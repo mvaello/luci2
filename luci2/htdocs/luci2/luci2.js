@@ -1292,6 +1292,18 @@ function LuCI2()
 		}),
 
 
+		testReset: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'reset_test',
+			expect: { supported: false }
+		}),
+
+		startReset: _luci2.rpc.declare({
+			object: 'luci2.system',
+			method: 'reset_start'
+		}),
+
+
 		performReboot: _luci2.rpc.declare({
 			object: 'luci2.system',
 			method: 'reboot'
