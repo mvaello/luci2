@@ -11,16 +11,12 @@ L.ui.view.extend({
 		});
 	},
 
-	installRemovePackage: function(name)
+	installRemovePackage: function(pkgname, installed)
 	{
-		if (typeof(name) != 'string')
-			name = undefined;
-
-		var pkgname   = (name || this.getAttribute('name')).replace(/^.*\//, '');
-		var installed = name ? false : !!this.getAttribute('installed');
+		var dspname   = pkgname.replace(/^.+\//, '');
 		var action    = installed ? L.opkg.removePackage : L.opkg.installPackage;
-		var title     = (installed ? L.tr('Removing package "%s" …') : L.tr('Installing package "%s" …')).format(pkgname);
-		var confirm   = (installed ? L.tr('Really remove package "%h" ?') : L.tr('Really install package "%h" ?')).format(pkgname);
+		var title     = (installed ? L.tr('Removing package "%s" …') : L.tr('Installing package "%s" …')).format(dspname);
+		var confirm   = (installed ? L.tr('Really remove package "%h" ?') : L.tr('Really install package "%h" ?')).format(dspname);
 
 		var self = this;
 
@@ -29,7 +25,7 @@ L.ui.view.extend({
 			confirm: function() {
 				L.ui.dialog(title, L.tr('Waiting for package manager …'), { style: 'wait' });
 
-				action(name || pkgname).then(function(res) {
+				action(pkgname).then(function(res) {
 					self.fetchInstalledList().then(function() { return self.fetchPackageList(); }).then(function() {
 						var output = [ ];
 
@@ -116,12 +112,14 @@ L.ui.view.extend({
 						return $('<button />')
 							.css('width', '100%')
 							.attr('disabled', install_disabled)
-							.attr('name', list[n][0])
+							.attr('pkgname', list[n][0])
 							.attr('installed', inst)
 							.addClass('cbi-button')
 							.addClass(inst ? 'cbi-button-apply' : 'cbi-button-reset')
 							.text(inst ? L.trc('Package state', 'Installed') : L.trc('Package state', 'Not installed'))
-							.click(self.installRemovePackage);
+							.click(function() {
+								self.installRemovePackage(this.getAttribute('pkgname'), this.getAttribute('installed') == 'true');
+							});
 					}
 				} ]
 			});
@@ -221,13 +219,13 @@ L.ui.view.extend({
 				ev.preventDefault();
 
 				if (this.value)
-					self.installRemovePackage(this.value);
+					self.installRemovePackage(this.value, false);
 			});
 
 			$('#package_install').click(function(ev) {
 				var name = $('#package_url').val();
 				if (name)
-					self.installRemovePackage(name);
+					self.installRemovePackage(name, false);
 			});
 
 			$('#package_update').click(function(ev) {
