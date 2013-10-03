@@ -584,12 +584,43 @@ function LuCI2()
 
 		},
 
-		changes: _luci2.rpc.declare({
+		configs: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'configs',
+			expect: { configs: [ ] }
+		}),
+
+		_changes: _luci2.rpc.declare({
 			object: 'uci',
 			method: 'changes',
 			params: [ 'config' ],
 			expect: { changes: [ ] }
 		}),
+
+		changes: function(config)
+		{
+			if (typeof(config) == 'string')
+				return this._changes(config);
+
+			var configlist;
+			return this.configs().then(function(configs) {
+				_luci2.rpc.batch();
+				configlist = configs;
+
+				for (var i = 0; i < configs.length; i++)
+					_luci2.uci._changes(configs[i]);
+
+				return _luci2.rpc.flush();
+			}).then(function(changes) {
+				var rv = { };
+
+				for (var i = 0; i < configlist.length; i++)
+					if (changes[i].length)
+						rv[configlist[i]] = changes[i];
+
+				return rv;
+			});
+		},
 
 		commit: _luci2.rpc.declare({
 			object: 'uci',
@@ -2053,12 +2084,90 @@ function LuCI2()
 			});
 		},
 
+		updateChanges: function()
+		{
+			return _luci2.uci.changes().then(function(changes) {
+				var n = 0;
+				var html = '';
+
+				for (var config in changes)
+				{
+					var log = [ ];
+
+					for (var i = 0; i < changes[config].length; i++)
+					{
+						var c = changes[config][i];
+
+						switch (c[0])
+						{
+						case 'order':
+							break;
+
+						case 'remove':
+							if (c.length < 3)
+								log.push('uci delete %s.<del>%s</del>'.format(config, c[1]));
+							else
+								log.push('uci delete %s.%s.<del>%s</del>'.format(config, c[1], c[2]));
+							break;
+
+						case 'rename':
+							if (c.length < 4)
+								log.push('uci rename %s.<ins>%s=<strong>%s</strong></ins>'.format(config, c[1], c[2], c[3]));
+							else
+								log.push('uci rename %s.%s.<ins>%s=<strong>%s</strong></ins>'.format(config, c[1], c[2], c[3], c[4]));
+							break;
+
+						case 'add':
+							log.push('uci add %s (= <ins><strong>%s</strong></ins>)'.format(config, c[1]));
+							break;
+
+						case 'list-add':
+							log.push('uci add_list %s.%s.<ins>%s=<strong>%s</strong></ins>'.format(config, c[1], c[2], c[3], c[4]));
+							break;
+
+						case 'list-del':
+							log.push('uci del_list %s.%s.<del>%s=<strong>%s</strong></del>'.format(config, c[1], c[2], c[3], c[4]));
+							break;
+
+						case 'set':
+							if (c.length < 4)
+								log.push('uci set %s.<ins>%s=<strong>%s</strong></ins>'.format(config, c[1], c[2]));
+							else
+								log.push('uci set %s.%s.<ins>%s=<strong>%s</strong></ins>'.format(config, c[1], c[2], c[3], c[4]));
+							break;
+						}
+					}
+
+					html += '<code>/etc/config/%s</code><pre class="uci-changes">%s</pre>'.format(config, log.join('\n'));
+					n += changes[config].length;
+				}
+
+				if (n > 0)
+					$('#changes')
+						.empty()
+						.show()
+						.append($('<a />')
+							.attr('href', '#')
+							.addClass('label')
+							.addClass('notice')
+							.text(_luci2.trcp('Pending configuration changes', '1 change', '%d changes', n).format(n))
+							.click(function(ev) {
+								_luci2.ui.dialog(_luci2.tr('Staged configuration changes'), html, { style: 'close' });
+								ev.preventDefault();
+							}));
+				else
+					$('#changes')
+						.hide();
+			});
+		},
+
 		init: function()
 		{
 			_luci2.ui.loading(true);
 
 			$.when(
 				_luci2.ui.updateHostname(),
+				_luci2.ui.updateChanges(),
 				_luci2.ui.renderMainMenu()
 			).then(function() {
 				_luci2.ui.renderView(_luci2.globals.defaultNode).then(function() {
@@ -5396,7 +5505,9 @@ function LuCI2()
 							_luci2.uci['delete'](c, s, (o === true) ? undefined : o);
 						}
 
-				return _luci2.rpc.flush();
+				return _luci2.rpc.flush().then(function() {
+					return _luci2.ui.updateChanges();
+				});
 			}, this));
 
 			var self = this;
