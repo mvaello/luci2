@@ -2056,7 +2056,7 @@ function LuCI2()
 			}).then(function(data) {
 				try {
 					var viewConstructorSource = (
-						'(function(L, $) {\n' +
+						'(function(L, $) { ' +
 							'return %s' +
 						'})(_luci2, $);\n\n' +
 						'//@ sourceURL=%s'
