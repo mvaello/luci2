@@ -788,13 +788,13 @@ function LuCI2()
 					var net = nets[i] = networks[i];
 					var dev = net.l3_device || net.l2_device;
 					if (dev)
-						net.device = devs[dev] = { };
+						net.device = devs[dev] || (devs[dev] = { });
 				}
 
 				_luci2.rpc.batch();
 
 				for (var dev in devs)
-					_luci2.network.listDeviceNamestatus(dev);
+					_luci2.network.getDeviceStatus(dev);
 
 				return _luci2.rpc.flush();
 			}).then(function(devices) {
@@ -817,7 +817,7 @@ function LuCI2()
 						if (!devs[brm[j]])
 						{
 							devs[brm[j]] = { };
-							_luci2.network.listDeviceNamestatus(brm[j]);
+							_luci2.network.getDeviceStatus(brm[j]);
 						}
 
 						devs[devices[i]['device']].subdevices[j] = devs[brm[j]];
@@ -867,6 +867,9 @@ function LuCI2()
 
 				for (var i = 0; i < interfaces.length; i++)
 				{
+					if (!interfaces[i].route)
+						continue;
+
 					for (var j = 0; j < interfaces[i].route.length; j++)
 					{
 						var rt = interfaces[i].route[j];
@@ -928,7 +931,7 @@ function LuCI2()
 			}
 		}),
 
-		listDeviceNamestatus: _luci2.rpc.declare({
+		getDeviceStatus: _luci2.rpc.declare({
 			object: 'network.device',
 			method: 'status',
 			params: [ 'name' ],
