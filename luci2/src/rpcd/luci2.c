@@ -144,6 +144,15 @@ static const struct blobmsg_policy rpc_menu_policy[__RPC_MENU_MAX] = {
 	                                          .type = BLOBMSG_TYPE_STRING },
 };
 
+enum {
+	RPC_SWITCH_NAME,
+	__RPC_SWITCH_MAX
+};
+
+static const struct blobmsg_policy rpc_switch_policy[__RPC_SWITCH_MAX] = {
+	[RPC_SWITCH_NAME]  = { .name = "switch",  .type = BLOBMSG_TYPE_STRING },
+};
+
 
 static int
 rpc_errno_status(void)
@@ -1740,6 +1749,333 @@ rpc_luci2_network_routes6(struct ubus_context *ctx, struct ubus_object *obj,
 }
 
 
+struct swconfig_state {
+	bool open;
+	void *array;
+	bool open2;
+	void *array2;
+	int port;
+};
+
+static int
+swconfig_parse_list(struct blob_buf *blob, char *buf, int len, void *priv)
+{
+	char *p;
+	char *nl = strchr(buf, '\n');
+	struct swconfig_state *s = priv;
+
+	if (!nl)
+		return 0;
+
+	if (!s->open)
+	{
+		s->open = true;
+		s->array = blobmsg_open_array(blob, "switches");
+	}
+
+	strtok(buf, ":");
+	p = strtok(NULL, " -");
+
+	if (p)
+		blobmsg_add_string(blob, NULL, p);
+
+	return (nl - buf + 1);
+}
+
+static int
+swconfig_finish_list(struct blob_buf *blob, int status, void *priv)
+{
+	struct swconfig_state *s = priv;
+
+	if (!s->open)
+		return UBUS_STATUS_NO_DATA;
+
+	blobmsg_close_array(blob, s->array);
+
+	return UBUS_STATUS_OK;
+}
+
+static int
+rpc_luci2_network_sw_list(struct ubus_context *ctx, struct ubus_object *obj,
+                          struct ubus_request_data *req, const char *method,
+                          struct blob_attr *msg)
+{
+	struct swconfig_state *state = NULL;
+	const char *cmd[3] = { "swconfig", "list", NULL };
+
+	state = malloc(sizeof(*state));
+
+	if (!state)
+		return UBUS_STATUS_UNKNOWN_ERROR;
+
+	memset(state, 0, sizeof(*state));
+
+	return ops->exec(cmd, NULL, swconfig_parse_list, NULL, swconfig_finish_list,
+	                 state, ctx, req);
+}
+
+
+static int
+swconfig_parse_help(struct blob_buf *blob, char *buf, int len, void *priv)
+{
+	void *c;
+	char *p;
+	char *nl = strchr(buf, '\n');
+	struct swconfig_state *s = priv;
+
+	if (!nl)
+		return 0;
+
+	if (!s->open)
+	{
+		s->open = true;
+		s->array = blobmsg_open_table(blob, "info");
+	}
+
+	switch (*buf)
+	{
+	case ' ':
+		strtok(buf, "-");
+		p = strtok(NULL, "-\n");
+
+		if (p)
+		{
+			if (s->open2)
+				blobmsg_close_array(blob, s->array2);
+
+			s->array2 = blobmsg_open_array(blob, p);
+			s->open2 = true;
+		}
+
+		break;
+
+	case '\t':
+		c = blobmsg_open_table(blob, NULL);
+
+		strtok(buf, "(");
+		p = strtok(NULL, ")");
+
+		if (p)
+			blobmsg_add_string(blob, "type", p);
+
+		p = strtok(NULL, ":( ");
+
+		if (p)
+			blobmsg_add_string(blob, "name", p);
+
+		p = strtok(NULL, "\n");
+		*(nl - 1) = 0;
+
+		if (p)
+			blobmsg_add_string(blob, "description", p + 1);
+
+		blobmsg_close_table(blob, c);
+		break;
+
+	default:
+		strtok(buf, "(");
+		p = strtok(NULL, ")");
+
+		if (p)
+			blobmsg_add_string(blob, "model", p);
+
+		strtok(NULL, ":");
+		p = strtok(NULL, "(");
+
+		if (p)
+			blobmsg_add_u32(blob, "num_ports", atoi(p));
+
+		strtok(NULL, "@");
+		p = strtok(NULL, ")");
+
+		if (p)
+			blobmsg_add_u32(blob, "cpu_port", atoi(p));
+
+		strtok(NULL, ":");
+		p = strtok(NULL, "\n");
+
+		if (p)
+			blobmsg_add_u32(blob, "num_vlans", atoi(p));
+
+		break;
+	}
+
+	return (nl - buf + 1);
+}
+
+static int
+swconfig_finish_help(struct blob_buf *blob, int status, void *priv)
+{
+	struct swconfig_state *s = priv;
+
+	if (!s->open)
+		return UBUS_STATUS_NO_DATA;
+
+	if (s->open2)
+		blobmsg_close_array(blob, s->array2);
+
+	blobmsg_close_table(blob, s->array);
+
+	return UBUS_STATUS_OK;
+}
+
+static int
+rpc_luci2_network_sw_info(struct ubus_context *ctx, struct ubus_object *obj,
+                          struct ubus_request_data *req, const char *method,
+                          struct blob_attr *msg)
+{
+	struct swconfig_state *state = NULL;
+	struct blob_attr *tb[__RPC_SWITCH_MAX];
+	const char *cmd[5] = { "swconfig", "dev", NULL, "help", NULL };
+
+	blobmsg_parse(rpc_switch_policy, __RPC_SWITCH_MAX, tb,
+	              blob_data(msg), blob_len(msg));
+
+	if (!tb[RPC_SWITCH_NAME])
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	state = malloc(sizeof(*state));
+
+	if (!state)
+		return UBUS_STATUS_UNKNOWN_ERROR;
+
+	memset(state, 0, sizeof(*state));
+
+	cmd[2] = blobmsg_get_string(tb[RPC_SWITCH_NAME]);
+
+	return ops->exec(cmd, NULL, swconfig_parse_help, NULL, swconfig_finish_help,
+	                 state, ctx, req);
+}
+
+
+static void
+swconfig_parse_link(struct blob_buf *blob, char *val)
+{
+	char *p;
+
+	int speed = 0;
+
+	bool rxflow = false;
+	bool txflow = false;
+	bool duplex = false;
+	bool aneg = false;
+	bool up = false;
+
+	for (p = strtok(val, " "); p; p = strtok(NULL, " "))
+	{
+		if (!strncmp(p, "speed:", 6))
+			speed = atoi(p + 6);
+		else if (!strcmp(p, "link:up"))
+			up = true;
+		else if (!strcmp(p, "txflow"))
+			txflow = true;
+		else if (!strcmp(p, "rxflow"))
+			rxflow = true;
+		else if (!strcmp(p, "full-duplex"))
+			duplex = true;
+		else if (!strcmp(p, "auto"))
+			aneg = true;
+	}
+
+	blobmsg_add_u8(blob, "link",             up);
+	blobmsg_add_u8(blob, "rx_flow_control",  rxflow);
+	blobmsg_add_u8(blob, "tx_flow_control",  txflow);
+	blobmsg_add_u8(blob, "full_duplex",      duplex);
+	blobmsg_add_u8(blob, "auto_negotiation", aneg);
+	blobmsg_add_u32(blob, "speed",           speed);
+}
+
+static int
+swconfig_parse_stat(struct blob_buf *blob, char *buf, int len, void *priv)
+{
+	char *p, *v;
+	char *nl = strchr(buf, '\n');
+	struct swconfig_state *s = priv;
+
+	if (!nl)
+		return 0;
+
+	if (nl == buf)
+		return 1;
+
+	if (!s->open)
+	{
+		s->open = true;
+		s->array = blobmsg_open_array(blob, "ports");
+	}
+
+	p = strtok(buf, " :\t");
+
+	if (p)
+	{
+		if (!strcmp(p, "Port"))
+		{
+			if (s->open2)
+				blobmsg_close_table(blob, s->array2);
+
+			s->array2 = blobmsg_open_table(blob, NULL);
+			s->open2 = true;
+		}
+		else if (s->open2)
+		{
+			v = strtok(NULL, "\n");
+
+			if (v)
+			{
+				if (!strcmp(p, "link"))
+					swconfig_parse_link(blob, v);
+			}
+		}
+	}
+
+	return (nl - buf + 1);
+}
+
+static int
+swconfig_finish_stat(struct blob_buf *blob, int status, void *priv)
+{
+	struct swconfig_state *s = priv;
+
+	if (!s->open)
+		return UBUS_STATUS_NO_DATA;
+
+	if (s->open2)
+		blobmsg_close_table(blob, s->array2);
+
+	blobmsg_close_array(blob, s->array);
+
+	return UBUS_STATUS_OK;
+}
+
+static int
+rpc_luci2_network_sw_status(struct ubus_context *ctx, struct ubus_object *obj,
+                            struct ubus_request_data *req, const char *method,
+                            struct blob_attr *msg)
+{
+	struct swconfig_state *state = NULL;
+	struct blob_attr *tb[__RPC_SWITCH_MAX];
+	const char *cmd[5] = { "swconfig", "dev", NULL, "show", NULL };
+
+	blobmsg_parse(rpc_switch_policy, __RPC_SWITCH_MAX, tb,
+	              blob_data(msg), blob_len(msg));
+
+	if (!tb[RPC_SWITCH_NAME])
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	state = malloc(sizeof(*state));
+
+	if (!state)
+		return UBUS_STATUS_UNKNOWN_ERROR;
+
+	memset(state, 0, sizeof(*state));
+
+	cmd[2] = blobmsg_get_string(tb[RPC_SWITCH_NAME]);
+
+	return ops->exec(cmd, NULL, swconfig_parse_stat, NULL, swconfig_finish_stat,
+	                 state, ctx, req);
+}
+
+
 struct opkg_state {
 	int cur_offset;
 	int cur_count;
@@ -2224,6 +2560,11 @@ rpc_luci2_api_init(const struct rpc_daemon_ops *o, struct ubus_context *ctx)
 		UBUS_METHOD_NOARG("dhcp6_leases",    rpc_luci2_network_leases6),
 		UBUS_METHOD_NOARG("routes",          rpc_luci2_network_routes),
 		UBUS_METHOD_NOARG("routes6",         rpc_luci2_network_routes6),
+		UBUS_METHOD_NOARG("switch_list",     rpc_luci2_network_sw_list),
+		UBUS_METHOD("switch_info",           rpc_luci2_network_sw_info,
+		                                     rpc_switch_policy),
+		UBUS_METHOD("switch_status",         rpc_luci2_network_sw_status,
+		                                     rpc_switch_policy)
 	};
 
 	static struct ubus_object_type luci2_network_type =
