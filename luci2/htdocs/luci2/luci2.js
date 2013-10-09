@@ -2068,6 +2068,9 @@ function LuCI2()
 		{
 			var name = node.view.split(/\//).join('.');
 
+			if (_luci2.globals.currentView)
+				_luci2.globals.currentView.finish();
+
 			_luci2.ui.renderViewMenu();
 
 			if (!_luci2._views)
@@ -2076,7 +2079,10 @@ function LuCI2()
 			_luci2.setHash('view', node.view);
 
 			if (_luci2._views[name] instanceof _luci2.ui.view)
+			{
+				_luci2.globals.currentView = _luci2._views[name];
 				return _luci2._views[name].render();
+			}
 
 			var url = _luci2.globals.resource + '/view/' + name + '.js';
 
@@ -2100,6 +2106,7 @@ function LuCI2()
 						acls: node.write || { }
 					});
 
+					_luci2.globals.currentView = _luci2._views[name];
 					return _luci2._views[name].render();
 				}
 				catch(e) {
@@ -2280,6 +2287,42 @@ function LuCI2()
 			return this._fetch_template().then(function() {
 				return _luci2.deferrable(self.execute());
 			});
+		},
+
+		repeat: function(func, interval)
+		{
+			var self = this;
+
+			if (!self._timeouts)
+				self._timeouts = [ ];
+
+			var index = self._timeouts.length;
+
+			if (typeof(interval) != 'number')
+				interval = 5000;
+
+			var setTimer, runTimer;
+
+			setTimer = function() {
+				self._timeouts[index] = window.setTimeout(runTimer, interval);
+			};
+
+			runTimer = function() {
+				_luci2.deferrable(func.call(self)).then(setTimer);
+			};
+
+			runTimer();
+		},
+
+		finish: function()
+		{
+			if ($.isArray(this._timeouts))
+			{
+				for (var i = 0; i < this._timeouts.length; i++)
+					window.clearTimeout(this._timeouts[i]);
+
+				delete this._timeouts;
+			}
 		}
 	});
 
