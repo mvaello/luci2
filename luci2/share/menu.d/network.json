@@ -1,0 +1,12 @@
+{
+    "network": {
+        "title": "Network",
+        "index": 30
+    },
+    "network/switch": {
+        "title": "Switch",
+        "acls": [ "switch" ],
+        "view": "network/switch",
+        "index": 30
+    }
+}

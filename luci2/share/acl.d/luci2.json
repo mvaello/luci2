@@ -273,5 +273,26 @@
 				"system"
 			]
 		}
+	},
+
+	"switch": {
+		"description": "Ethernet switch configuration",
+		"read": {
+			"ubus": {
+				"luci2.network": [
+					"switch_list",
+					"switch_info",
+					"switch_status"
+				]
+			},
+			"uci": [
+				"network"
+			]
+		},
+		"write": {
+			"uci": [
+				"network"
+			]
+		}
 	}
 }

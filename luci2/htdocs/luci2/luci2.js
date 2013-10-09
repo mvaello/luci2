@@ -946,6 +946,37 @@ function LuCI2()
 			object: 'luci2.network',
 			method: 'conntrack_count',
 			expect: { '': { count: 0, limit: 0 } }
+		}),
+
+		listSwitchNames: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'switch_list',
+			expect: { switches: [ ] }
+		}),
+
+		getSwitchInfo: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'switch_info',
+			params: [ 'switch' ],
+			expect: { info: { } },
+			filter: function(data, params) {
+				data['attrs']      = data['switch'];
+				data['vlan_attrs'] = data['vlan'];
+				data['port_attrs'] = data['port'];
+				data['switch']     = params['switch'];
+
+				delete data.vlan;
+				delete data.port;
+
+				return data;
+			}
+		}),
+
+		getSwitchStatus: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'switch_status',
+			params: [ 'switch' ],
+			expect: { ports: [ ] }
 		})
 	};
 
