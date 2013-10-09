@@ -2333,7 +2333,10 @@ function LuCI2()
 				var child = this.firstChildView(nodes[i]);
 				if (child)
 				{
-					$.extend(node, child);
+					for (var key in child)
+						if (!node.hasOwnProperty(key) && child.hasOwnProperty(key))
+							node[key] = child[key];
+
 					return node;
 				}
 			}
