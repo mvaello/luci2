@@ -3612,12 +3612,10 @@ function LuCI2()
 
 			if (chg)
 			{
-				val = val ? this.options.enabled : this.options.disabled;
-
 				if (this.options.optional && val == this.options.initial)
 					this.map.set(uci.config, uci.section, uci.option, undefined);
 				else
-					this.map.set(uci.config, uci.section, uci.option, val);
+					this.map.set(uci.config, uci.section, uci.option, val ? this.options.enabled : this.options.disabled);
 			}
 
 			return chg;
