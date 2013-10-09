@@ -1773,8 +1773,8 @@ swconfig_parse_list(struct blob_buf *blob, char *buf, int len, void *priv)
 		s->array = blobmsg_open_array(blob, "switches");
 	}
 
-	strtok(buf, ":");
-	p = strtok(NULL, " -");
+	strtok(buf, "-");
+	p = strtok(NULL, " \n");
 
 	if (p)
 		blobmsg_add_string(blob, NULL, p);
