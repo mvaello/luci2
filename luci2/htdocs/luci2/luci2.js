@@ -2152,7 +2152,7 @@ function LuCI2()
 							break;
 
 						case 'add':
-							log.push('uci add %s (= <ins><strong>%s</strong></ins>)'.format(config, c[1]));
+							log.push('uci add %s <ins>%s</ins> (= <ins><strong>%s</strong></ins>)'.format(config, c[2], c[1]));
 							break;
 
 						case 'list-add':
