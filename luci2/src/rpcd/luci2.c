@@ -2075,6 +2075,90 @@ rpc_luci2_network_sw_status(struct ubus_context *ctx, struct ubus_object *obj,
 	                 state, ctx, req);
 }
 
+enum {
+	NETWORK_CMD_PING,
+	NETWORK_CMD_PING6,
+	NETWORK_CMD_TRACEROUTE,
+	NETWORK_CMD_TRACEROUTE6,
+	NETWORK_CMD_NSLOOKUP
+};
+
+static int
+network_cmd(struct ubus_context *ctx, struct ubus_request_data *req,
+            struct blob_attr *msg, int which)
+{
+	char *arg;
+	struct blob_attr *tb[__RPC_D_MAX];
+
+	blobmsg_parse(rpc_data_policy, __RPC_D_MAX, tb,
+	              blob_data(msg), blob_len(msg));
+
+	if (!tb[RPC_D_DATA])
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	arg = blobmsg_get_string(tb[RPC_D_DATA]);
+
+	const char *cmds[][8] = {
+		[NETWORK_CMD_PING] = {
+			"ping", "-c", "5", "-W", "1", arg
+		},
+		[NETWORK_CMD_PING6] = {
+			"ping6", "-c", "5", "-W", "1", arg
+		},
+		[NETWORK_CMD_TRACEROUTE] = {
+			"traceroute", "-q", "1", "-w", "1", "-n", arg
+		},
+		[NETWORK_CMD_TRACEROUTE6] = {
+			"traceroute6", "-q", "1", "-w", "2", "-n", arg
+		},
+		[NETWORK_CMD_NSLOOKUP] = {
+			"nslookup", arg
+		}
+	};
+
+	return ops->exec(cmds[which], NULL, NULL, NULL, NULL, NULL, ctx, req);
+}
+
+static int
+rpc_luci2_network_ping(struct ubus_context *ctx, struct ubus_object *obj,
+                       struct ubus_request_data *req, const char *method,
+                       struct blob_attr *msg)
+{
+	return network_cmd(ctx, req, msg, NETWORK_CMD_PING);
+}
+
+static int
+rpc_luci2_network_ping6(struct ubus_context *ctx, struct ubus_object *obj,
+                        struct ubus_request_data *req, const char *method,
+                        struct blob_attr *msg)
+{
+	return network_cmd(ctx, req, msg, NETWORK_CMD_PING6);
+}
+
+static int
+rpc_luci2_network_traceroute(struct ubus_context *ctx, struct ubus_object *obj,
+                             struct ubus_request_data *req, const char *method,
+                             struct blob_attr *msg)
+{
+	return network_cmd(ctx, req, msg, NETWORK_CMD_TRACEROUTE);
+}
+
+static int
+rpc_luci2_network_traceroute6(struct ubus_context *ctx, struct ubus_object *obj,
+                              struct ubus_request_data *req, const char *method,
+                              struct blob_attr *msg)
+{
+	return network_cmd(ctx, req, msg, NETWORK_CMD_TRACEROUTE6);
+}
+
+static int
+rpc_luci2_network_nslookup(struct ubus_context *ctx, struct ubus_object *obj,
+                           struct ubus_request_data *req, const char *method,
+                           struct blob_attr *msg)
+{
+	return network_cmd(ctx, req, msg, NETWORK_CMD_NSLOOKUP);
+}
+
 
 struct opkg_state {
 	int cur_offset;
@@ -2564,7 +2648,17 @@ rpc_luci2_api_init(const struct rpc_daemon_ops *o, struct ubus_context *ctx)
 		UBUS_METHOD("switch_info",           rpc_luci2_network_sw_info,
 		                                     rpc_switch_policy),
 		UBUS_METHOD("switch_status",         rpc_luci2_network_sw_status,
-		                                     rpc_switch_policy)
+		                                     rpc_switch_policy),
+		UBUS_METHOD("ping",                  rpc_luci2_network_ping,
+		                                     rpc_data_policy),
+		UBUS_METHOD("ping6",                 rpc_luci2_network_ping6,
+		                                     rpc_data_policy),
+		UBUS_METHOD("traceroute",            rpc_luci2_network_traceroute,
+		                                     rpc_data_policy),
+		UBUS_METHOD("traceroute6",           rpc_luci2_network_traceroute6,
+		                                     rpc_data_policy),
+		UBUS_METHOD("nslookup",              rpc_luci2_network_nslookup,
+		                                     rpc_data_policy)
 	};
 
 	static struct ubus_object_type luci2_network_type =
