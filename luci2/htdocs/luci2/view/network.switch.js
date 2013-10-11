@@ -74,6 +74,8 @@ L.ui.view.extend({
 
 			for (var i = 0; i < switches.length; i++)
 			{
+				var swname    = switches[i]['switch'];
+
 				var vid_opt   = 'vlan';
 				var v4k_opt   = undefined;
 				var pvid_opt  = undefined;
@@ -106,7 +108,7 @@ L.ui.view.extend({
 
 				var sw = m.section(L.cbi.TypedSection, 'switch', {
 					caption:  L.tr('Switch "%s"').format(switches[i].model),
-					swname:   switches[i]['switch']
+					swname:   swname
 				});
 
 				sw.filter = function(section) {
@@ -148,7 +150,7 @@ L.ui.view.extend({
 
 				var vlans = m.section(L.cbi.TableSection, 'switch_vlan', {
 					caption:     L.tr('VLANs on "%s"').format(switches[i].model),
-					swname:      switches[i]['switch'],
+					swname:      swname,
 					addremove:   true,
 					add_caption: L.tr('Add VLAN entry …')
 				});
@@ -273,14 +275,33 @@ L.ui.view.extend({
 						label = L.trc('Switch port label', 'CPU');
 
 					var po = vlans.option(self.switchPortState, j.toString(), {
-						caption: label
+						caption: label + '<br /><small id="portstatus-%s-%d"></small>'.format(swname, j)
 					});
 
 					port_opts.push(po);
 				}
 			}
 
-			return m.insertInto('#map');
+			m.insertInto('#map');
+
+			self.repeat(function() {
+				return L.network.getSwitchStatus(swname).then(function(ports) {
+					for (var j = 0; j < ports.length; j++)
+					{
+						var s = L.tr('No link');
+						var d = '&#160;';
+
+						if (ports[j].link)
+						{
+							s = '%dbaseT'.format(ports[j].speed);
+							d = ports[j].full_duplex ? L.tr('Full-duplex') : L.tr('Half-duplex');
+						}
+
+						$('#portstatus-%s-%d'.format(swname, j))
+							.empty().append(s + '<br />' + d);
+					}
+				});
+			}, 5000);
 		});
 	}
 });
