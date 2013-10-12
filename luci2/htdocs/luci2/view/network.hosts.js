@@ -8,9 +8,7 @@ L.ui.view.extend({
         });
 
         var s = m.section(L.cbi.TableSection, 'domain', {
-            caption:     function(sid) { return sid ? (this.fields.name.textvalue(sid) || L.tr('Unnamed LED')) : '' },
-            teasers:     [ 'sysfs', 'default', 'trigger', '_net_dev', 'mode', '_usb_dev', 'delayon', 'delayoff' ],
-            collabsible: true,
+            anonymous:   true,
             addremove:   true,
             add_caption: L.tr('Add new hostname'),
             remove_caption: L.tr('Remove hostname')
