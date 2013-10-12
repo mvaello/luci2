@@ -9,6 +9,12 @@
         "view": "network/switch",
         "index": 30
     },
+    "network/hosts": {
+        "title": "Hostnames",
+        "acls": [ "hostnames" ],
+        "view": "network/hosts",
+        "index": 50
+    },
     "network/diagnostics": {
         "title": "Diagnostics",
         "acls": [ "diagnostics" ],

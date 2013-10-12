@@ -309,5 +309,19 @@
 				]
 			}
 		}
+	},
+
+	"hostnames": {
+		"description": "Host entry management",
+		"read": {
+			"uci": [
+				"dhcp"
+			]
+		},
+		"write": {
+			"uci": [
+				"dhcp"
+			]
+		}
 	}
 }
