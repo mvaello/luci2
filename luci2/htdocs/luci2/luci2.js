@@ -977,6 +977,42 @@ function LuCI2()
 			method: 'switch_status',
 			params: [ 'switch' ],
 			expect: { ports: [ ] }
+		}),
+
+
+		runPing: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'ping',
+			params: [ 'data' ],
+			expect: { '': { code: -1 } }
+		}),
+
+		runPing6: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'ping6',
+			params: [ 'data' ],
+			expect: { '': { code: -1 } }
+		}),
+
+		runTraceroute: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'traceroute',
+			params: [ 'data' ],
+			expect: { '': { code: -1 } }
+		}),
+
+		runTraceroute6: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'traceroute6',
+			params: [ 'data' ],
+			expect: { '': { code: -1 } }
+		}),
+
+		runNslookup: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'nslookup',
+			params: [ 'data' ],
+			expect: { '': { code: -1 } }
 		})
 	};
 
