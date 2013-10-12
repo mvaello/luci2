@@ -8,5 +8,11 @@
         "acls": [ "switch" ],
         "view": "network/switch",
         "index": 30
+    },
+    "network/diagnostics": {
+        "title": "Diagnostics",
+        "acls": [ "diagnostics" ],
+        "view": "network/diagnostics",
+        "index": 80
     }
 }

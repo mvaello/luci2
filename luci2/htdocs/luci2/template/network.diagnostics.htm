@@ -1,0 +1,18 @@
+<p><%:Select the utility to run and click "Test" to perform the requested operation.%></p>
+<p>
+	<table style="width:auto">
+		<tr>
+			<td>
+				<select id="tool"></select>
+			</td>
+			<td>
+				<input type="text" id="host" value="openwrt.org" />
+			</td>
+			<td>
+				<input type="button" class="cbi-button cbi-button-apply" id="run" value="<%:Test%>" />
+			</td>
+		</tr>
+	</table>
+</p>
+
+<pre id="output" style="display:none"></pre>

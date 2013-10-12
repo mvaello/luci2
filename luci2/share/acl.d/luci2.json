@@ -294,5 +294,20 @@
 				"network"
 			]
 		}
+	},
+
+	"diagnostics": {
+		"description": "Network diagnostic tools",
+		"read": {
+			"ubus": {
+				"luci2.network": [
+					"ping",
+					"ping6",
+					"traceroute",
+					"traceroute6",
+					"nslookup"
+				]
+			}
+		}
 	}
 }
