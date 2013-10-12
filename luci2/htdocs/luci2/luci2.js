@@ -387,7 +387,7 @@ function LuCI2()
 	};
 
 	this.globals = {
-		timeout:  3000,
+		timeout:  15000,
 		resource: '/luci2',
 		sid:      '00000000000000000000000000000000'
 	};
