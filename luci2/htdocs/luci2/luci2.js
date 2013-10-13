@@ -2991,6 +2991,7 @@ function LuCI2()
 				}
 			}
 
+			validation.i18n('Must be a valid IPv6 address');
 			return false;
 		},
 
