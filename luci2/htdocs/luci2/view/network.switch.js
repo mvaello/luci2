@@ -60,7 +60,7 @@ L.ui.view.extend({
 
 	execute: function() {
 		var self = this;
-		L.network.listSwitchNames().then(function(switches) {
+		return L.network.listSwitchNames().then(function(switches) {
 			L.rpc.batch();
 
 			for (var i = 0; i < switches.length; i++)
@@ -69,7 +69,7 @@ L.ui.view.extend({
 			return L.rpc.flush();
 		}).then(function(switches) {
 			var m = new L.cbi.Map('network', {
-				readonly:    !self.options.acls['switch']
+				readonly:    !self.options.acls.network
 			});
 
 			for (var i = 0; i < switches.length; i++)

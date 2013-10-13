@@ -275,27 +275,6 @@
 		}
 	},
 
-	"switch": {
-		"description": "Ethernet switch configuration",
-		"read": {
-			"ubus": {
-				"luci2.network": [
-					"switch_list",
-					"switch_info",
-					"switch_status"
-				]
-			},
-			"uci": [
-				"network"
-			]
-		},
-		"write": {
-			"uci": [
-				"network"
-			]
-		}
-	},
-
 	"diagnostics": {
 		"description": "Network diagnostic tools",
 		"read": {
@@ -321,6 +300,27 @@
 		"write": {
 			"uci": [
 				"dhcp"
+			]
+		}
+	},
+
+	"network": {
+		"description": "Network, switch and routing configuration",
+		"read": {
+			"ubus": {
+				"luci2.network": [
+					"switch_list",
+					"switch_info",
+					"switch_status"
+				]
+			},
+			"uci": [
+				"network"
+			]
+		},
+		"write": {
+			"uci": [
+				"network"
 			]
 		}
 	}

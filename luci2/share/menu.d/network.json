@@ -5,7 +5,7 @@
     },
     "network/switch": {
         "title": "Switch",
-        "acls": [ "switch" ],
+        "acls": [ "network" ],
         "view": "network/switch",
         "index": 30
     },
