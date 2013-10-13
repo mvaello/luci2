@@ -2700,7 +2700,9 @@ function LuCI2()
 	this.ui.devicebadge = AbstractWidget.extend({
 		render: function()
 		{
-			var dev = this.options.l3_device || this.options.device || '?';
+			var l2dev = this.options.l2_device || this.options.device;
+			var l3dev = this.options.l3_device;
+			var dev = l3dev || l2dev || '?';
 
 			var span = document.createElement('span');
 				span.className = 'ifacebadge';
@@ -2741,7 +2743,7 @@ function LuCI2()
 				var type = 'ethernet';
 				var desc = _luci2.tr('Ethernet device');
 
-				if (this.options.l3_device != this.options.device)
+				if (l3dev != l2dev)
 				{
 					type = 'tunnel';
 					desc = _luci2.tr('Tunnel interface');
