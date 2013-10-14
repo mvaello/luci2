@@ -5643,33 +5643,6 @@ function LuCI2()
 			});
 		},
 
-		dialog: function(id)
-		{
-			var d = $('<div />');
-			var p = $('<p />');
-
-			$('<img />')
-				.attr('src', _luci2.globals.resource + '/icons/loading.gif')
-				.css('vertical-align', 'middle')
-				.css('padding-right', '10px')
-				.appendTo(p);
-
-			p.append(_luci2.tr('Loading data...'));
-
-			p.appendTo(d);
-			d.appendTo(id);
-
-			return d.dialog({
-				modal: true,
-				draggable: false,
-				resizable: false,
-				height: 90,
-				open: function() {
-					$(this).parent().children('.ui-dialog-titlebar').hide();
-				}
-			});
-		},
-
 		insertInto: function(id)
 		{
 			var self = this;
