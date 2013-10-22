@@ -2420,11 +2420,12 @@ function LuCI2()
 			var setTimer, runTimer;
 
 			setTimer = function() {
-				self._timeouts[index] = window.setTimeout(runTimer, interval);
+				if (self._timeouts)
+					self._timeouts[index] = window.setTimeout(runTimer, interval);
 			};
 
 			runTimer = function() {
-				_luci2.deferrable(func.call(self)).then(setTimer);
+				_luci2.deferrable(func.call(self)).then(setTimer, setTimer);
 			};
 
 			runTimer();
