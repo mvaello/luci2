@@ -2339,6 +2339,10 @@ function LuCI2()
 
 		insertInto: function(id) {
 			return $(id).empty().append(this.render());
+		},
+
+		appendTo: function(id) {
+			return $(id).append(this.render());
 		}
 	});
 
