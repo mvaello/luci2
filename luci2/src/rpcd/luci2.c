@@ -2160,6 +2160,42 @@ rpc_luci2_network_nslookup(struct ubus_context *ctx, struct ubus_object *obj,
 }
 
 
+static int
+network_ifupdown(struct ubus_context *ctx, struct ubus_request_data *req,
+                 struct blob_attr *msg, bool up)
+{
+	const char *cmd[3] = { NULL };
+	struct blob_attr *tb[__RPC_D_MAX];
+
+	blobmsg_parse(rpc_data_policy, __RPC_D_MAX, tb,
+	              blob_data(msg), blob_len(msg));
+
+	if (!tb[RPC_D_DATA])
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	cmd[0] = up ? "/sbin/ifup" : "/sbin/ifdown";
+	cmd[1] = blobmsg_get_string(tb[RPC_D_DATA]);
+
+	return ops->exec(cmd, NULL, NULL, NULL, NULL, NULL, ctx, req);
+}
+
+static int
+rpc_luci2_network_ifup(struct ubus_context *ctx, struct ubus_object *obj,
+                       struct ubus_request_data *req, const char *method,
+                       struct blob_attr *msg)
+{
+	return network_ifupdown(ctx, req, msg, true);
+}
+
+static int
+rpc_luci2_network_ifdown(struct ubus_context *ctx, struct ubus_object *obj,
+                         struct ubus_request_data *req, const char *method,
+                         struct blob_attr *msg)
+{
+	return network_ifupdown(ctx, req, msg, false);
+}
+
+
 struct opkg_state {
 	int cur_offset;
 	int cur_count;
@@ -2658,6 +2694,10 @@ rpc_luci2_api_init(const struct rpc_daemon_ops *o, struct ubus_context *ctx)
 		UBUS_METHOD("traceroute6",           rpc_luci2_network_traceroute6,
 		                                     rpc_data_policy),
 		UBUS_METHOD("nslookup",              rpc_luci2_network_nslookup,
+		                                     rpc_data_policy),
+		UBUS_METHOD("ifup",                  rpc_luci2_network_ifup,
+		                                     rpc_data_policy),
+		UBUS_METHOD("ifdown",                rpc_luci2_network_ifdown,
 		                                     rpc_data_policy)
 	};
 
