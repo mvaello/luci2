@@ -1013,6 +1013,21 @@ function LuCI2()
 			method: 'nslookup',
 			params: [ 'data' ],
 			expect: { '': { code: -1 } }
+		}),
+
+
+		setUp: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'ifup',
+			params: [ 'data' ],
+			expect: { '': { code: -1 } }
+		}),
+
+		setDown: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'ifdown',
+			params: [ 'data' ],
+			expect: { '': { code: -1 } }
 		})
 	};
 
