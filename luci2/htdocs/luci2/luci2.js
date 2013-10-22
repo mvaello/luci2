@@ -2166,9 +2166,14 @@ function LuCI2()
 				.append(_luci2.globals.mainMenu.render(2, 900));
 		},
 
-		renderView: function(node)
+		renderView: function()
 		{
+			var node = arguments[0];
 			var name = node.view.split(/\//).join('.');
+			var args = [ ];
+
+			for (var i = 1; i < arguments.length; i++)
+				args.push(arguments[i]);
 
 			if (_luci2.globals.currentView)
 				_luci2.globals.currentView.finish();
@@ -2183,7 +2188,7 @@ function LuCI2()
 			if (_luci2._views[name] instanceof _luci2.ui.view)
 			{
 				_luci2.globals.currentView = _luci2._views[name];
-				return _luci2._views[name].render();
+				return _luci2._views[name].render.apply(_luci2._views[name], args);
 			}
 
 			var url = _luci2.globals.resource + '/view/' + name + '.js';
@@ -2209,7 +2214,7 @@ function LuCI2()
 					});
 
 					_luci2.globals.currentView = _luci2._views[name];
-					return _luci2._views[name].render();
+					return _luci2._views[name].render.apply(_luci2._views[name], args);
 				}
 				catch(e) {
 					alert('Unable to instantiate view "%s": %s'.format(url, e));
@@ -2386,8 +2391,13 @@ function LuCI2()
 				container.append($('<div />').addClass('cbi-map-descr').append(this.description));
 
 			var self = this;
+			var args = [ ];
+
+			for (var i = 0; i < arguments.length; i++)
+				args.push(arguments[i]);
+
 			return this._fetch_template().then(function() {
-				return _luci2.deferrable(self.execute());
+				return _luci2.deferrable(self.execute.apply(self, args));
 			});
 		},
 
