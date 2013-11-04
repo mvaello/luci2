@@ -3902,15 +3902,12 @@ function LuCI2()
 				for (var i = 0; i < this.choices.length; i++)
 				{
 					$('<label />')
+						.addClass('checkbox')
 						.append($('<input />')
-							.addClass('cbi-input-checkbox')
 							.attr('type', 'checkbox')
 							.attr('value', this.choices[i][0])
 							.prop('checked', s[this.choices[i][0]]))
 						.append(this.choices[i][1])
-						.appendTo(t);
-
-					$('<br />')
 						.appendTo(t);
 				}
 
