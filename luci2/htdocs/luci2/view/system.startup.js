@@ -22,55 +22,49 @@ L.ui.view.extend({
                         key:     'start'
                     }, {
                         caption: L.tr('Initscript'),
-                        key:     'name',
-                        width:   '90%'
+                        key:     'name'
                     }, {
-                        caption: L.trc('Init script table heading', 'Enable'),
                         key:     'enabled',
-                        format: function(v, n) {
-                            return $('<button />')
-                                .attr('disabled', !allow_write)
-                                .attr('name', list[n].name)
-                                .addClass('cbi-button')
-                                .addClass(v ? 'cbi-button-apply' : 'cbi-button-reset')
-                                .text(v ? L.trc('Init script state', 'Enabled') : L.trc('Init script state', 'Disabled'))
-                                .click(function() {
-                                    L.ui.loading(true);
-                                    if (v)
-                                        L.system.initDisable(this.getAttribute('name')).then(redraw);
-                                    else
-                                        L.system.initEnable(this.getAttribute('name')).then(redraw);
-                                });
-                        }
-                    }, {
-                        caption: L.trc('Init script table heading', 'Restart'),
-                        key:     'enabled',
-                        format: function(v, n) {
-                            return $('<button />')
-                                .attr('disabled', !allow_write)
-                                .attr('name', list[n].name)
-                                .addClass('cbi-button')
-                                .addClass('cbi-button-reload')
-                                .text(L.trc('Init script action', 'Restart'))
-                                .click(function() {
-                                    L.ui.loading(true);
-                                    L.system.initRestart(this.getAttribute('name')).then(redraw)
-                                });
-                        }
-                    }, {
-                        caption: L.trc('Init script table heading', 'Stop'),
-                        key:     'enabled',
-                        format: function(v, n) {
-                            return $('<button />')
-                                .attr('disabled', !allow_write)
-                                .attr('name', list[n].name)
-                                .addClass('cbi-button')
-                                .addClass('cbi-button-remove')
-                                .text(L.trc('Init script action', 'Stop'))
-                                .click(function() {
-                                    L.ui.loading(true);
-                                    L.system.initStop(this.getAttribute('name')).then(redraw)
-                                });
+                        format:  function(v, n) {
+                            return [
+                                $('<div />')
+                                    .addClass('btn-group pull-right')
+                                    .append($('<button />')
+                                        .attr('disabled', !allow_write)
+                                        .attr('name', list[n].name)
+                                        .addClass('btn btn-sm')
+                                        .addClass(v ? 'btn-success' : 'btn-danger')
+                                        .text(v ? L.trc('Init script state', 'Enabled') : L.trc('Init script state', 'Disabled'))
+                                        .click(function() {
+                                            L.ui.loading(true);
+                                            if (v)
+                                                L.system.initDisable(this.getAttribute('name')).then(redraw);
+                                            else
+                                                L.system.initEnable(this.getAttribute('name')).then(redraw);
+                                        }))
+                                    .append($('<button />')
+                                        .addClass('btn btn-primary btn-sm dropdown-toggle')
+                                        .attr('data-toggle', 'dropdown')
+                                        .attr('disabled', !allow_write)
+                                        .text(L.tr('Action…')))
+                                    .append($('<ul />')
+                                        .addClass('dropdown-menu pull-right')
+                                        .append($('<li />')
+                                            .append($('<a />')
+                                                .attr('href', '#')
+                                                .text(L.tr('Reload'))
+                                                .click(function(ev) { L.system.initReload(v).then(redraw); ev.preventDefault(); })))
+                                        .append($('<li />')
+                                            .append($('<a />')
+                                                .attr('href', '#')
+                                                .text(L.tr('Restart'))
+                                                .click(function(ev) { L.system.initRestart(v).then(redraw); ev.preventDefault(); })))
+                                        .append($('<li />')
+                                            .append($('<a />')
+                                                .attr('href', '#')
+                                                .text(L.tr('Stop'))
+                                                .click(function(ev) { L.system.initStop(v).then(redraw); ev.preventDefault(); }))))
+                            ];
                         }
                     } ]
                 });
@@ -81,8 +75,6 @@ L.ui.view.extend({
                 L.ui.loading(false);
             }),
             L.system.getRcLocal().then(function(data) {
-                $('#maps').accordion({ heightStyle: 'content' });
-
                 $('textarea').val(data).attr('disabled', !allow_write);
                 $('input.cbi-button-save').attr('disabled', !allow_write).click(function() {
                     var data = ($('textarea').val() || '').replace(/\r/g, '').replace(/\n?$/, '\n');

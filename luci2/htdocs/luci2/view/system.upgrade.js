@@ -222,6 +222,7 @@ L.ui.view.extend({
 								.css('width', '100%')
 								.attr('rows', list.length)
 								.prop('readonly', true)
+								.addClass('form-control')
 								.val(list.join('\n')),
 							{ style: 'close' }
 						);

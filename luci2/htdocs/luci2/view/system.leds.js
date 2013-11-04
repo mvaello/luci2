@@ -33,8 +33,8 @@ L.ui.view.extend({
         });
 
         var s = m.section(L.cbi.TypedSection, 'led', {
-            caption:     function(sid) { return sid ? (this.fields.name.textvalue(sid) || L.tr('Unnamed LED')) : '' },
-            teasers:     [ 'sysfs', 'default', 'trigger', '_net_dev', 'mode', '_usb_dev', 'delayon', 'delayoff' ],
+            caption:     L.tr('LED Definitions'),
+            teasers:     [ 'name', 'sysfs', 'default', 'trigger', '_net_dev', 'mode', '_usb_dev', 'delayon', 'delayoff' ],
             collabsible: true,
             addremove:   true,
             add_caption: L.tr('Add new LED defintion'),

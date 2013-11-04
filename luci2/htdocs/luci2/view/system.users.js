@@ -94,6 +94,7 @@ L.ui.view.extend({
 		widget: function(sid)
 		{
             var t = $('<table />')
+                .addClass('table table-condensed table-hover')
                 .attr('id', this.id(sid))
                 .append($('<tr />')
                     .append($('<th />')
@@ -131,6 +132,7 @@ L.ui.view.extend({
                     {
                         $(r.insertCell(-1))
                             .append($('<input />')
+                                .addClass('form-control')
                                 .attr('type', 'radio')
                                 .attr('name', '%s_%s'.format(this.id(sid), this.choices[i][0]))
                                 .attr('value', j)
@@ -219,7 +221,7 @@ L.ui.view.extend({
 
     execute: function() {
         var self = this;
-        L.ui.listAvailableACLs().then(function(acls) {
+        return L.ui.listAvailableACLs().then(function(acls) {
             var m = new L.cbi.Map('rpcd', {
                 caption:     L.tr('Guest Logins'),
                 description: L.tr('Manage user accounts and permissions for accessing the LuCI ui.'),
@@ -227,14 +229,11 @@ L.ui.view.extend({
             });
 
             var s = m.section(L.cbi.TypedSection, 'login', {
-                caption:      function(sid) {
-                    var u = sid ? this.fields.username.textvalue(sid) : undefined;
-                    return u ? L.tr('Login "%s"').format(u) : L.tr('New login');
-                },
+                caption:      L.tr('Accounts'),
                 collabsible:  true,
                 addremove:    true,
-                add_caption:  L.tr('Add new user …'),
-                teasers:      [ '__shadow', '__acls' ]
+                add_caption:  L.tr('Add account …'),
+                teasers:      [ 'username', '__shadow', '__acls' ]
             });
 
             s.option(L.cbi.InputValue, 'username', {

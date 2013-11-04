@@ -126,14 +126,14 @@ L.ui.view.extend({
                 .append($('<p />')
                     .text(L.tr('Paste the public key line into the field below and press "%s" to continue.').format(L.tr('Ok'))))
                 .append($('<p />')
+                    .text(L.tr('Unrecognized public key! Please add only RSA or DSA keys.'))
+                    .addClass('alert alert-danger')
+                    .hide())
+                .append($('<p />')
                     .append($('<input />')
                         .attr('type', 'text')
                         .attr('placeholder', L.tr('Paste key here'))
-                        .css('width', '100%')))
-                .append($('<p />')
-                    .text(L.tr('Unrecognized public key! Please add only RSA or DSA keys.'))
-                    .addClass('alert-message')
-                    .hide());
+                        .addClass('form-control')));
 
             L.ui.dialog(L.tr('Add new public key'), form, {
                 style: 'confirm',
@@ -148,7 +148,7 @@ L.ui.view.extend({
                     if (!key)
                     {
                         form.find('input').val('');
-                        form.find('.alert-message').show();
+                        form.find('.alert').show();
                         return;
                     }
 
@@ -183,29 +183,28 @@ L.ui.view.extend({
                     continue;
 
                 $('<div />')
-                    .addClass('cbi-input-dynlist')
+                    .addClass('input-group')
                     .append($('<input />')
+                        .addClass('form-control')
                         .attr('type', 'text')
                         .prop('readonly', true)
                         .click({ self: this, index: i }, this._show)
                         .val('%dBit %s - %s'.format(k.bits, k.type, k.comment || '?')))
-                    .append($('<img />')
-                        .attr('src', L.globals.resource + '/icons/cbi/remove.gif')
-                        .attr('title', L.tr('Remove public key'))
-                        .click({ self: this, div: div, index: i }, this._remove)
-                        .addClass('cbi-button'))
+                    .append($('<span />')
+                        .addClass('input-group-btn')
+                        .append($('<button />')
+                            .addClass('btn btn-danger')
+                            .attr('title', L.tr('Remove public key'))
+                            .text('–')
+                            .click({ self: this, div: div, index: i }, this._remove)))
                     .appendTo(div);
             }
 
             if (this._keys.length > 0)
                 $('<br />').appendTo(div);
 
-            $('<input />')
-                .attr('type', 'button')
-                .val(L.tr('Add public key …'))
+            L.ui.button(L.tr('Add public key …'), 'success')
                 .click({ self: this, div: div }, this._add)
-                .addClass('cbi-button')
-                .addClass('cbi-button-apply')
                 .appendTo(div);
         },
 
@@ -257,7 +256,8 @@ L.ui.view.extend({
         return L.system.getSSHKeys().then(function(keys) {
             var m = new L.cbi.Map('dropbear', {
                 caption:     L.tr('SSH Access'),
-                description: L.tr('Dropbear offers SSH network shell access and an integrated SCP server')
+                description: L.tr('Dropbear offers SSH network shell access and an integrated SCP server'),
+                tabbed:      true
             });
 
             var s1 = m.section(L.cbi.DummySection, '__password', {

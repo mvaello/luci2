@@ -3,13 +3,15 @@
 	<table style="width:auto">
 		<tr>
 			<td>
-				<select id="tool"></select>
+				<input type="text" id="host" value="openwrt.org" class="form-control" />
 			</td>
 			<td>
-				<input type="text" id="host" value="openwrt.org" />
-			</td>
-			<td>
-				<input type="button" class="cbi-button cbi-button-apply" id="run" value="<%:Test%>" />
+				<div class="input-group">
+					<select id="tool" class="form-control"></select>
+					<div class="input-group-btn">
+						<button type="button" class="btn btn-primary" id="run"><%:Test%></button>
+					</div>
+				</div>
 			</td>
 		</tr>
 	</table>

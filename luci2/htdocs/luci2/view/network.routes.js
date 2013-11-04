@@ -13,6 +13,7 @@ L.ui.view.extend({
                 caption:     L.tr('Static IPv4 Routes'),
                 anonymous:   true,
                 addremove:   true,
+                sortable:    true,
                 add_caption: L.tr('Add new route'),
                 remove_caption: L.tr('Remove route')
             });
@@ -61,6 +62,7 @@ L.ui.view.extend({
                 caption:     L.tr('Static IPv6 Routes'),
                 anonymous:   true,
                 addremove:   true,
+                sortable:    true,
                 add_caption: L.tr('Add new route'),
                 remove_caption: L.tr('Remove route')
             });

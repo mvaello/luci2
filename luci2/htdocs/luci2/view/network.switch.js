@@ -220,13 +220,13 @@ L.ui.view.extend({
 							used_vids[v] = true;
 						}
 
-						v = parseInt(v, 10);
-
-						if (isNaN(v))
+						if (val.match(/[^0-9]/))
 							return L.tr('Invalid VLAN ID');
 
-						if (v < 1 || v > max_vid)
-							return L.tr('VLAN ID must be value between %u and %u').format(1, max_vid);
+						val = parseInt(val, 10);
+
+						if (val < 1 || val > max_vid)
+							return L.tr('VLAN ID must be a value between %u and %u').format(1, max_vid);
 
 						return true;
 					}
@@ -282,26 +282,26 @@ L.ui.view.extend({
 				}
 			}
 
-			m.insertInto('#map');
+			return m.insertInto('#map').then(function() {
+                self.repeat(function() {
+                    return L.network.getSwitchStatus(swname).then(function(ports) {
+                        for (var j = 0; j < ports.length; j++)
+                        {
+                            var s = L.tr('No link');
+                            var d = '&#160;';
 
-			self.repeat(function() {
-				return L.network.getSwitchStatus(swname).then(function(ports) {
-					for (var j = 0; j < ports.length; j++)
-					{
-						var s = L.tr('No link');
-						var d = '&#160;';
+                            if (ports[j].link)
+                            {
+                                s = '%dbaseT'.format(ports[j].speed);
+                                d = ports[j].full_duplex ? L.tr('Full-duplex') : L.tr('Half-duplex');
+                            }
 
-						if (ports[j].link)
-						{
-							s = '%dbaseT'.format(ports[j].speed);
-							d = ports[j].full_duplex ? L.tr('Full-duplex') : L.tr('Half-duplex');
-						}
-
-						$('#portstatus-%s-%d'.format(swname, j))
-							.empty().append(s + '<br />' + d);
-					}
-				});
-			}, 5000);
+                            $('#portstatus-%s-%d'.format(swname, j))
+                                .empty().append(s + '<br />' + d);
+                        }
+                    });
+                }, 5000);
+            });
 		});
 	}
 });
