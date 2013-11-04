@@ -270,7 +270,7 @@ response(bool success, const char *message)
 	struct stat s;
 
 	printf("Status: 200 OK\r\n");
-	printf("Content-Type: application/json\r\n\r\n{\n");
+	printf("Content-Type: text/plain\r\n\r\n{\n");
 
 	if (success)
 	{
