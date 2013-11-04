@@ -1653,29 +1653,22 @@ function LuCI2()
 
 			var state = _luci2.ui._loading || (_luci2.ui._loading = {
 				modal: $('<div />')
-					.addClass('cbi-modal-loader')
-					.append($('<div />').text(_luci2.tr('Loading data...')))
+					.addClass('modal fade')
+					.append($('<div />')
+						.addClass('modal-dialog')
+						.append($('<div />')
+							.addClass('modal-content luci2-modal-loader')
+							.append($('<div />')
+								.addClass('modal-body')
+								.text(_luci2.tr('Loading data…')))))
 					.appendTo(body)
+					.modal({
+						backdrop: 'static',
+						keyboard: false
+					})
 			});
 
-			if (enable)
-			{
-				body.css('overflow', 'hidden');
-				body.css('padding', 0);
-				body.css('width', win.width());
-				body.css('height', win.height());
-				state.modal.css('width', win.width());
-				state.modal.css('height', win.height());
-				state.modal.show();
-			}
-			else
-			{
-				state.modal.hide();
-				body.css('overflow', '');
-				body.css('padding', '');
-				body.css('width', '');
-				body.css('height', '');
-			}
+			state.modal.modal(enable ? 'show' : 'hide');
 		},
 
 		dialog: function(title, content, options)
@@ -1685,26 +1678,23 @@ function LuCI2()
 
 			var state = _luci2.ui._dialog || (_luci2.ui._dialog = {
 				dialog: $('<div />')
-					.addClass('cbi-modal-dialog')
+					.addClass('modal fade')
 					.append($('<div />')
+						.addClass('modal-dialog')
 						.append($('<div />')
-							.addClass('cbi-modal-dialog-header'))
-						.append($('<div />')
-							.addClass('cbi-modal-dialog-body'))
-						.append($('<div />')
-							.addClass('cbi-modal-dialog-footer')
-							.append($('<button />')
-								.addClass('cbi-button')
-								.text(_luci2.tr('Close'))
-								.click(function() {
-									$('body')
-										.css('overflow', '')
-										.css('padding', '')
-										.css('width', '')
-										.css('height', '');
-
-									$(this).parent().parent().parent().hide();
-								}))))
+							.addClass('modal-content')
+							.append($('<div />')
+								.addClass('modal-header')
+								.append('<h4 />')
+									.addClass('modal-title'))
+							.append($('<div />')
+								.addClass('modal-body'))
+							.append($('<div />')
+								.addClass('modal-footer')
+								.append(_luci2.ui.button(_luci2.tr('Close'), 'primary')
+									.click(function() {
+										$(this).parents('div.modal').modal('hide');
+									})))))
 					.appendTo(body)
 			});
 
@@ -1713,66 +1703,39 @@ function LuCI2()
 
 			if (title === false)
 			{
-				body
-					.css('overflow', '')
-					.css('padding', '')
-					.css('width', '')
-					.css('height', '');
-
-				state.dialog.hide();
+				state.dialog.modal('hide');
 
 				return;
 			}
 
-			var cnt = state.dialog.children().children('div.cbi-modal-dialog-body');
-			var ftr = state.dialog.children().children('div.cbi-modal-dialog-footer');
+			var cnt = state.dialog.children().children().children('div.modal-body');
+			var ftr = state.dialog.children().children().children('div.modal-footer');
 
 			ftr.empty();
 
 			if (options.style == 'confirm')
 			{
-				ftr.append($('<button />')
-					.addClass('cbi-button')
-					.text(_luci2.tr('Ok'))
+				ftr.append(_luci2.ui.button(_luci2.tr('Ok'), 'primary')
 					.click(options.confirm || function() { _luci2.ui.dialog(false) }));
 
-				ftr.append($('<button />')
-					.addClass('cbi-button')
-					.text(_luci2.tr('Cancel'))
+				ftr.append(_luci2.ui.button(_luci2.tr('Cancel'), 'default')
 					.click(options.cancel || function() { _luci2.ui.dialog(false) }));
 			}
 			else if (options.style == 'close')
 			{
-				ftr.append($('<button />')
-					.addClass('cbi-button')
-					.text(_luci2.tr('Close'))
+				ftr.append(_luci2.ui.button(_luci2.tr('Close'), 'primary')
 					.click(options.close || function() { _luci2.ui.dialog(false) }));
 			}
 			else if (options.style == 'wait')
 			{
-				ftr.append($('<button />')
-					.addClass('cbi-button')
-					.text(_luci2.tr('Close'))
+				ftr.append(_luci2.ui.button(_luci2.tr('Close'), 'primary')
 					.attr('disabled', true));
 			}
 
-			state.dialog.find('div.cbi-modal-dialog-header').text(title);
-			state.dialog.show();
+			state.dialog.find('h4:first').text(title);
+			state.dialog.modal('show');
 
-			cnt
-				.css('max-height', Math.floor(win.height() * 0.70) + 'px')
-				.empty()
-				.append(content);
-
-			state.dialog.children()
-				.css('margin-top', -Math.floor(state.dialog.children().height() / 2) + 'px');
-
-			body.css('overflow', 'hidden');
-			body.css('padding', 0);
-			body.css('width', win.width());
-			body.css('height', win.height());
-			state.dialog.css('width', win.width());
-			state.dialog.css('height', win.height());
+			cnt.empty().append(content);
 		},
 
 		upload: function(title, content, options)
@@ -1796,11 +1759,12 @@ function LuCI2()
 						.addClass('cbi-input-file'))
 					.append($('<div />')
 						.css('width', '100%')
-						.addClass('progressbar')
-						.addClass('intermediate')
+						.addClass('progress progress-striped active')
 						.append($('<div />')
+							.addClass('progress-bar')
 							.css('width', '100%')))
 					.append($('<iframe />')
+						.addClass('pull-right')
 						.attr('name', 'cbi-fileupload-frame')
 						.css('width', '1px')
 						.css('height', '1px')
@@ -1839,7 +1803,7 @@ function LuCI2()
 
 				confirm_cb: function() {
 					var f = state.form.find('.cbi-input-file');
-					var b = state.form.find('.progressbar');
+					var b = state.form.find('.progress');
 					var p = state.form.find('p');
 
 					if (!f.val())
@@ -1856,7 +1820,7 @@ function LuCI2()
 				}
 			});
 
-			state.form.find('.progressbar').hide();
+			state.form.find('.progress').hide();
 			state.form.find('.cbi-input-file').val('').show();
 			state.form.find('p').text(content || _luci2.tr('Select the file to upload and press "%s" to proceed.').format(_luci2.tr('Ok')));
 
@@ -1960,7 +1924,7 @@ function LuCI2()
 								.attr('type', 'text')
 								.attr('name', 'username')
 								.attr('value', 'root')
-								.addClass('cbi-input-text')
+								.addClass('form-control')
 								.keypress(function(ev) {
 									if (ev.which == 10 || ev.which == 13)
 										state.confirm_cb();
@@ -1972,7 +1936,7 @@ function LuCI2()
 							.append($('<input />')
 								.attr('type', 'password')
 								.attr('name', 'password')
-								.addClass('cbi-input-password')
+								.addClass('form-control')
 								.keypress(function(ev) {
 									if (ev.which == 10 || ev.which == 13)
 										state.confirm_cb();
@@ -2322,19 +2286,47 @@ function LuCI2()
 					_luci2.ui.loading(false);
 				})
 			});
+		},
+
+		button: function(label, style, title)
+		{
+			style = style || 'default';
+
+			return $('<button />')
+				.attr('type', 'button')
+				.attr('title', title ? title : '')
+				.addClass('btn btn-' + style)
+				.text(label);
 		}
 	};
 
-	var AbstractWidget = Class.extend({
+	this.ui.AbstractWidget = Class.extend({
 		i18n: function(text) {
 			return text;
 		},
 
-		toString: function() {
-			var x = document.createElement('div');
-				x.appendChild(this.render());
+		label: function() {
+			var key = arguments[0];
+			var args = [ ];
 
-			return x.innerHTML;
+			for (var i = 1; i < arguments.length; i++)
+				args.push(arguments[i]);
+
+			switch (typeof(this.options[key]))
+			{
+			case 'undefined':
+				return '';
+
+			case 'function':
+				return this.options[key].apply(this, args);
+
+			default:
+				return ''.format.apply('' + this.options[key], args);
+			}
+		},
+
+		toString: function() {
+			return $('<div />').append(this.render()).html();
 		},
 
 		insertInto: function(id) {
@@ -2346,7 +2338,7 @@ function LuCI2()
 		}
 	});
 
-	this.ui.view = AbstractWidget.extend({
+	this.ui.view = this.ui.AbstractWidget.extend({
 		_fetch_template: function()
 		{
 			return $.ajax(_luci2.globals.resource + '/template/' + this.options.name + '.htm', {
@@ -2392,7 +2384,7 @@ function LuCI2()
 				container.append($('<h2 />').append(this.title));
 
 			if (this.description)
-				container.append($('<div />').addClass('cbi-map-descr').append(this.description));
+				container.append($('<p />').append(this.description));
 
 			var self = this;
 			var args = [ ];
@@ -2443,7 +2435,7 @@ function LuCI2()
 		}
 	});
 
-	this.ui.menu = AbstractWidget.extend({
+	this.ui.menu = this.ui.AbstractWidget.extend({
 		init: function() {
 			this._nodes = { };
 		},
@@ -2530,9 +2522,9 @@ function LuCI2()
 			var list = $('<ul />');
 
 			if (level == 0)
-				list.addClass('nav');
+				list.addClass('nav').addClass('navbar-nav');
 			else if (level == 1)
-				list.addClass('dropdown-menu');
+				list.addClass('dropdown-menu').addClass('navbar-inverse');
 
 			for (var i = 0; i < nodes.length; i++)
 			{
@@ -2546,15 +2538,23 @@ function LuCI2()
 				var item = $('<li />')
 					.append($('<a />')
 						.attr('href', '#')
-						.text(_luci2.tr(nodes[i].title))
-						.click(nodes[i], this._onclick))
+						.text(_luci2.tr(nodes[i].title)))
 					.appendTo(list);
 
 				if (nodes[i].childs && level < max)
 				{
 					item.addClass('dropdown');
-					item.find('a').addClass('menu');
+
+					item.find('a')
+						.addClass('dropdown-toggle')
+						.attr('data-toggle', 'dropdown')
+						.append('<b class="caret"></b>');
+
 					item.append(this._render(nodes[i].childs, level + 1));
+				}
+				else
+				{
+					item.find('a').click(nodes[i], this._onclick);
 				}
 			}
 
@@ -2587,7 +2587,7 @@ function LuCI2()
 		}
 	});
 
-	this.ui.table = AbstractWidget.extend({
+	this.ui.table = this.ui.AbstractWidget.extend({
 		init: function()
 		{
 			this._rows = [ ];
@@ -2634,7 +2634,7 @@ function LuCI2()
 			}
 
 			var table = document.createElement('table');
-				table.className = 'cbi-section-table';
+				table.className = 'table table-condensed table-hover';
 
 			var has_caption = false;
 			var has_description = false;
@@ -2753,32 +2753,34 @@ function LuCI2()
 		}
 	});
 
-	this.ui.progress = AbstractWidget.extend({
+	this.ui.progress = this.ui.AbstractWidget.extend({
 		render: function()
 		{
 			var vn = parseInt(this.options.value) || 0;
 			var mn = parseInt(this.options.max) || 100;
 			var pc = Math.floor((100 / mn) * vn);
 
-			var bar = document.createElement('div');
-				bar.className = 'progressbar';
-
-			bar.appendChild(document.createElement('div'));
-			bar.lastChild.appendChild(document.createElement('div'));
-			bar.lastChild.style.width = pc + '%';
+			var text;
 
 			if (typeof(this.options.format) == 'string')
-				$(bar.lastChild.lastChild).append(this.options.format.format(this.options.value, this.options.max, pc));
+				text = this.options.format.format(this.options.value, this.options.max, pc);
 			else if (typeof(this.options.format) == 'function')
-				$(bar.lastChild.lastChild).append(this.options.format(pc));
+				text = this.options.format(pc);
 			else
-				$(bar.lastChild.lastChild).append('%.2f%%'.format(pc));
+				text = '%.2f%%'.format(pc);
 
-			return bar;
+			return $('<div />')
+				.addClass('progress')
+				.append($('<div />')
+					.addClass('progress-bar')
+					.addClass('progress-bar-info')
+					.css('width', pc + '%'))
+				.append($('<small />')
+					.text(text));
 		}
 	});
 
-	this.ui.devicebadge = AbstractWidget.extend({
+	this.ui.devicebadge = this.ui.AbstractWidget.extend({
 		render: function()
 		{
 			var l2dev = this.options.l2_device || this.options.device;
@@ -2786,7 +2788,7 @@ function LuCI2()
 			var dev = l3dev || l2dev || '?';
 
 			var span = document.createElement('span');
-				span.className = 'ifacebadge';
+				span.className = 'badge';
 
 			if (typeof(this.options.signal) == 'number' ||
 				typeof(this.options.noise) == 'number')
@@ -3347,7 +3349,7 @@ function LuCI2()
 	};
 
 
-	this.cbi.AbstractValue = AbstractWidget.extend({
+	this.cbi.AbstractValue = this.ui.AbstractWidget.extend({
 		init: function(name, options)
 		{
 			this.name = name;
@@ -3368,27 +3370,42 @@ function LuCI2()
 			return this.section.id('field', sid || '__unknown__', this.name);
 		},
 
-		render: function(sid)
+		render: function(sid, condensed)
 		{
 			var i = this.instance[sid] = { };
 
-			i.top = $('<div />').addClass('cbi-value');
+			i.top = $('<div />');
 
-			if (typeof(this.options.caption) == 'string')
-				$('<label />')
-					.addClass('cbi-value-title')
-					.attr('for', this.id(sid))
-					.text(this.options.caption)
-					.appendTo(i.top);
+			if (!condensed)
+			{
+				i.top.addClass('form-group');
 
-			i.widget = $('<div />').addClass('cbi-value-field').append(this.widget(sid)).appendTo(i.top);
-			i.error = $('<div />').addClass('cbi-value-error').appendTo(i.top);
+				if (typeof(this.options.caption) == 'string')
+					$('<label />')
+						.addClass('col-lg-2 control-label')
+						.attr('for', this.id(sid))
+						.text(this.options.caption)
+						.appendTo(i.top);
+			}
 
-			if (typeof(this.options.description) == 'string')
+			i.error = $('<div />')
+				.addClass('label label-danger');
+
+			i.widget = $('<div />')
+
+				.append(this.widget(sid))
+				.append(i.error)
+				.appendTo(i.top);
+
+			if (!condensed)
+			{
+				i.widget.addClass('col-lg-5');
+
 				$('<div />')
-					.addClass('cbi-value-description')
-					.text(this.options.description)
+					.addClass('col-lg-5')
+					.text((typeof(this.options.description) == 'string') ? this.options.description : '')
 					.appendTo(i.top);
+			}
 
 			return i.top;
 		},
@@ -3492,6 +3509,52 @@ function LuCI2()
 			return chg;
 		},
 
+		_ev_validate: function(ev)
+		{
+			var d = ev.data;
+			var rv = true;
+			var val = d.elem.val();
+			var vstack = d.vstack;
+
+			if (vstack && typeof(vstack[0]) == 'function')
+			{
+				delete validation.message;
+
+				if ((val.length == 0 && !d.opt))
+				{
+					d.elem.parents('div.form-group, td').first().addClass('luci2-form-error');
+					d.elem.parents('div.input-group, div.form-group, td').first().addClass('has-error');
+
+					d.inst.error.text(_luci2.tr('Field must not be empty'));
+					rv = false;
+				}
+				else if (val.length > 0 && !vstack[0].apply(val, vstack[1]))
+				{
+					d.elem.parents('div.form-group, td').first().addClass('luci2-form-error');
+					d.elem.parents('div.input-group, div.form-group, td').first().addClass('has-error');
+
+					d.inst.error.text(validation.message.format.apply(validation.message, vstack[1]));
+					rv = false;
+				}
+				else
+				{
+					d.elem.parents('div.form-group, td').first().removeClass('luci2-form-error');
+					d.elem.parents('div.input-group, div.form-group, td').first().removeClass('has-error');
+
+					if (d.multi && d.inst.widget && d.inst.widget.find('input.error, select.error').length > 0)
+						rv = false;
+					else
+						d.inst.error.text('');
+				}
+			}
+
+			if (rv)
+				for (var field in d.self.rdependency)
+					d.self.rdependency[field].toggle(d.sid);
+
+			return rv;
+		},
+
 		validator: function(sid, elem, multi)
 		{
 			if (typeof(this.options.datatype) == 'undefined' && $.isEmptyObject(this.rdependency))
@@ -3516,79 +3579,31 @@ function LuCI2()
 			}
 
 			var evdata = {
-				self:  this,
-				sid:   sid,
-				elem:  elem,
-				multi: multi,
-				inst:  this.instance[sid],
-				opt:   this.options.optional
-			};
-
-			var validator = function(ev)
-			{
-				var d = ev.data;
-				var rv = true;
-				var val = d.elem.val();
-
-				if (vstack && typeof(vstack[0]) == 'function')
-				{
-					delete validation.message;
-
-					if ((val.length == 0 && !d.opt))
-					{
-						d.elem.addClass('error');
-						d.inst.top.addClass('error');
-						d.inst.error.text(_luci2.tr('Field must not be empty'));
-						rv = false;
-					}
-					else if (val.length > 0 && !vstack[0].apply(val, vstack[1]))
-					{
-						d.elem.addClass('error');
-						d.inst.top.addClass('error');
-						d.inst.error.text(validation.message.format.apply(validation.message, vstack[1]));
-						rv = false;
-					}
-					else
-					{
-						d.elem.removeClass('error');
-
-						if (d.multi && d.inst.widget.find('input.error, select.error').length > 0)
-						{
-							rv = false;
-						}
-						else
-						{
-							d.inst.top.removeClass('error');
-							d.inst.error.text('');
-						}
-					}
-				}
-
-				if (rv)
-				{
-					for (var field in d.self.rdependency)
-						d.self.rdependency[field].toggle(d.sid);
-				}
-
-				return rv;
+				self:   this,
+				sid:    sid,
+				elem:   elem,
+				multi:  multi,
+				vstack: vstack,
+				inst:   this.instance[sid],
+				opt:    this.options.optional
 			};
 
 			if (elem.prop('tagName') == 'SELECT')
 			{
-				elem.change(evdata, validator);
+				elem.change(evdata, this._ev_validate);
 			}
 			else if (elem.prop('tagName') == 'INPUT' && elem.attr('type') == 'checkbox')
 			{
-				elem.click(evdata, validator);
-				elem.blur(evdata, validator);
+				elem.click(evdata, this._ev_validate);
+				elem.blur(evdata, this._ev_validate);
 			}
 			else
 			{
-				elem.keyup(evdata, validator);
-				elem.blur(evdata, validator);
+				elem.keyup(evdata, this._ev_validate);
+				elem.blur(evdata, this._ev_validate);
 			}
 
-			elem.attr('cbi-validate', true).on('validate', evdata, validator);
+			elem.attr('cbi-validate', true).on('validate', evdata, this._ev_validate);
 
 			return elem;
 		},
@@ -3734,11 +3749,14 @@ function LuCI2()
 			if (typeof(o.disabled) == 'undefined') o.disabled = '0';
 
 			var i = $('<input />')
+				.addClass('form-control')
 				.attr('id', this.id(sid))
 				.attr('type', 'checkbox')
 				.prop('checked', this.ucivalue(sid));
 
-			return this.validator(sid, i);
+			return $('<div />')
+				.addClass('checkbox')
+				.append(this.validator(sid, i));
 		},
 
 		ucivalue: function(sid)
@@ -3792,6 +3810,7 @@ function LuCI2()
 		widget: function(sid)
 		{
 			var i = $('<input />')
+				.addClass('form-control')
 				.attr('id', this.id(sid))
 				.attr('type', 'text')
 				.attr('placeholder', this.options.placeholder)
@@ -3805,26 +3824,28 @@ function LuCI2()
 		widget: function(sid)
 		{
 			var i = $('<input />')
+				.addClass('form-control')
 				.attr('id', this.id(sid))
 				.attr('type', 'password')
 				.attr('placeholder', this.options.placeholder)
 				.val(this.ucivalue(sid));
 
-			var t = $('<img />')
-				.attr('src', _luci2.globals.resource + '/icons/cbi/reload.gif')
-				.attr('title', _luci2.tr('Reveal or hide password'))
-				.addClass('cbi-button')
-				.click(function(ev) {
-					var i = $(this).prev();
-					var t = i.attr('type');
-					i.attr('type', (t == 'password') ? 'text' : 'password');
-					i = t = null;
-				});
+			var t = $('<span />')
+				.addClass('input-group-btn')
+				.append(_luci2.ui.button(_luci2.tr('Reveal'), 'default')
+					.click(function(ev) {
+						var b = $(this);
+						var i = b.parent().prev();
+						var t = i.attr('type');
+						b.text(t == 'password' ? _luci2.tr('Hide') : _luci2.tr('Reveal'));
+						i.attr('type', (t == 'password') ? 'text' : 'password');
+						b = i = t = null;
+					}));
 
 			this.validator(sid, i);
 
 			return $('<div />')
-				.addClass('cbi-input-password')
+				.addClass('input-group')
 				.append(i)
 				.append(t);
 		}
@@ -3833,7 +3854,8 @@ function LuCI2()
 	this.cbi.ListValue = this.cbi.AbstractValue.extend({
 		widget: function(sid)
 		{
-			var s = $('<select />');
+			var s = $('<select />')
+				.addClass('form-control');
 
 			if (this.options.optional)
 				$('<option />')
@@ -4052,7 +4074,7 @@ function LuCI2()
 			var v = s.values || [ ];
 			delete s.values;
 
-			$(s.parent).children('input').each(function(i) {
+			$(s.parent).children('div.input-group').children('input').each(function(i) {
 				if (i != del)
 					v.push(this.value || '');
 			});
@@ -4076,17 +4098,33 @@ function LuCI2()
 					sid: s.sid,
 					self: s.self,
 					parent: s.parent,
-					index: i
+					index: i,
+					remove: ((i+1) < v.length)
 				};
+
+				var btn;
+				if (evdata.remove)
+					btn = _luci2.ui.button('–', 'danger').click(evdata, this._btnclick);
+				else
+					btn = _luci2.ui.button('+', 'success').click(evdata, this._btnclick);
 
 				if (this.choices)
 				{
 					var txt = $('<input />')
+						.addClass('form-control')
 						.attr('type', 'text')
-						.hide()
-						.appendTo(s.parent);
+						.hide();
 
 					var sel = $('<select />')
+						.addClass('form-control');
+
+					$('<div />')
+						.addClass('input-group')
+						.append(txt)
+						.append(sel)
+						.append($('<span />')
+							.addClass('input-group-btn')
+							.append(btn))
 						.appendTo(s.parent);
 
 					evdata.input = this.validator(s.sid, txt, true);
@@ -4110,12 +4148,18 @@ function LuCI2()
 						.attr('type', 'text')
 						.attr('index', i)
 						.attr('placeholder', (i == 0) ? this.options.placeholder : '')
-						.addClass('cbi-input-text')
+						.addClass('form-control')
 						.keydown(evdata, this._keydown)
 						.keypress(evdata, this._keypress)
 						.val(v[i]);
 
-					f.appendTo(s.parent);
+					$('<div />')
+						.addClass('input-group')
+						.append(f)
+						.append($('<span />')
+							.addClass('input-group-btn')
+							.append(btn))
+						.appendTo(s.parent);
 
 					if (i == focus)
 					{
@@ -4135,16 +4179,6 @@ function LuCI2()
 
 					f = null;
 				}
-
-				$('<img />')
-					.attr('src', _luci2.globals.resource + ((i+1) < v.length ? '/icons/cbi/remove.gif' : '/icons/cbi/add.gif'))
-					.attr('title', (i+1) < v.length ? _luci2.tr('Remove entry') : _luci2.tr('Add entry'))
-					.addClass('cbi-button')
-					.click(evdata, this._btnclick)
-					.appendTo(s.parent);
-
-				$('<br />')
-					.appendTo(s.parent);
 
 				evdata = null;
 			}
@@ -4210,7 +4244,7 @@ function LuCI2()
 
 				/* arrow up */
 				case 38:
-					var prev = input.prevAll('input:first');
+					var prev = input.parent().prevAll('div.input-group:first').children('input');
 					if (prev.is(':visible'))
 						prev.focus();
 					else
@@ -4219,7 +4253,7 @@ function LuCI2()
 
 				/* arrow down */
 				case 40:
-					var next = input.nextAll('input:first');
+					var next = input.parent().nextAll('div.input-group:first').children('input');
 					if (next.is(':visible'))
 						next.focus();
 					else
@@ -4234,7 +4268,7 @@ function LuCI2()
 		{
 			if (!this.getAttribute('disabled'))
 			{
-				if (ev.target.src.indexOf('remove') > -1)
+				if (ev.data.remove)
 				{
 					var index = ev.data.index;
 					ev.data.self._redraw(-index, -1, index, ev.data);
@@ -4298,7 +4332,7 @@ function LuCI2()
 		widget: function(sid)
 		{
 			return $('<div />')
-				.addClass('cbi-value-dummy')
+				.addClass('form-control-static')
 				.attr('id', this.id(sid))
 				.html(this.ucivalue(sid));
 		},
@@ -4362,7 +4396,7 @@ function LuCI2()
 			var id = this.id(sid);
 			var ul = $('<ul />')
 				.attr('id', id)
-				.addClass('cbi-input-networks');
+				.addClass('list-unstyled');
 
 			var itype = this.options.multiple ? 'checkbox' : 'radio';
 			var value = this.ucivalue(sid);
@@ -4380,7 +4414,7 @@ function LuCI2()
 				{
 					var iface = this.interfaces[i];
 					var badge = $('<span />')
-						.addClass('ifacebadge')
+						.addClass('badge')
 						.text('%s: '.format(iface['interface']));
 
 					if (iface.device && iface.device.subdevices)
@@ -4393,12 +4427,13 @@ function LuCI2()
 
 					$('<li />')
 						.append($('<label />')
+							.addClass('radio inline')
 							.append($('<input />')
 								.attr('name', itype + id)
 								.attr('type', itype)
 								.attr('value', iface['interface'])
 								.prop('checked', !!check[iface['interface']])
-								.addClass('cbi-input-' + itype))
+								.addClass('form-control'))
 							.append(badge))
 						.appendTo(ul);
 				}
@@ -4408,12 +4443,13 @@ function LuCI2()
 			{
 				$('<li />')
 					.append($('<label />')
+						.addClass('radio inline text-muted')
 						.append($('<input />')
 							.attr('name', itype + id)
 							.attr('type', itype)
 							.attr('value', '')
 							.prop('checked', !value)
-							.addClass('cbi-input-' + itype))
+							.addClass('form-control'))
 						.append(_luci2.tr('unspecified')))
 					.appendTo(ul);
 			}
@@ -4472,7 +4508,7 @@ function LuCI2()
 	});
 
 
-	this.cbi.AbstractSection = AbstractWidget.extend({
+	this.cbi.AbstractSection = this.ui.AbstractWidget.extend({
 		id: function()
 		{
 			var s = [ arguments[0], this.map.uci_package, this.uci_type ];
@@ -4561,60 +4597,63 @@ function LuCI2()
 			return rv;
 		},
 
-		validate: function(sid)
+		validate_section: function(sid)
 		{
-			var rv = true;
-
-			if (!sid)
-			{
-				var as = this.sections();
-				for (var i = 0; i < as.length; i++)
-					if (!this.validate(as[i]['.name']))
-						rv = false;
-				return rv;
-			}
-
 			var inst = this.instance[sid];
-			var sv = rv[sid] || (rv[sid] = { });
 
 			var invals = 0;
-			var legend = $('#' + this.id('sort', sid)).find('legend:first');
-
-			legend.children('span').detach();
+			var badge = $('#' + this.id('teaser', sid)).children('span:first');
 
 			for (var i = 0; i < this.tabs.length; i++)
 			{
 				var inval = 0;
-				var tab = $('#' + this.id('tabhead', sid, this.tabs[i].id));
-
-				tab.children('span').detach();
+				var stbadge = $('#' + this.id('nodetab', sid, this.tabs[i].id)).children('span:first');
 
 				for (var j = 0; j < this.tabs[i].fields.length; j++)
 					if (!this.tabs[i].fields[j].validate(sid))
 						inval++;
 
 				if (inval > 0)
-				{
-					$('<span />')
-						.addClass('badge')
-						.attr('title', _luci2.tr('%d Errors'.format(inval)))
-						.text(inval)
-						.appendTo(tab);
+					stbadge.text(inval)
+						.attr('title', _luci2.trp('1 Error', '%d Errors', inval).format(inval));
+				else
+					stbadge.text('');
 
-					invals += inval;
-					tab = null;
-					rv = false;
-				}
+				invals += inval;
 			}
 
 			if (invals > 0)
-				$('<span />')
-					.addClass('badge')
-					.attr('title', _luci2.tr('%d Errors'.format(invals)))
-					.text(invals)
-					.appendTo(legend);
+				badge.text(invals)
+					.attr('title', _luci2.trp('1 Error', '%d Errors', invals).format(invals));
+			else
+				badge.text('');
 
-			return rv;
+			return invals;
+		},
+
+		validate: function()
+		{
+			this.error_count = 0;
+
+			var as = this.sections();
+
+			for (var i = 0; i < as.length; i++)
+			{
+				var invals = this.validate_section(as[i]['.name']);
+
+				if (invals > 0)
+					this.error_count += invals;
+			}
+
+			var badge = $('#' + this.id('sectiontab')).children('span:first');
+
+			if (this.error_count > 0)
+				badge.text(this.error_count)
+					.attr('title', _luci2.trp('1 Error', '%d Errors', this.error_count).format(this.error_count));
+			else
+				badge.text('');
+
+			return (this.error_count == 0);
 		}
 	});
 
@@ -4625,6 +4664,7 @@ function LuCI2()
 			this.options  = options;
 			this.tabs     = [ ];
 			this.fields   = { };
+			this.error_count  = 0;
 			this.active_panel = 0;
 			this.active_tab   = { };
 		},
@@ -4661,7 +4701,7 @@ function LuCI2()
 			this.map.remove(this.map.uci_package, sid);
 		},
 
-		_add: function(ev)
+		_ev_add: function(ev)
 		{
 			var addb = $(this);
 			var name = undefined;
@@ -4683,13 +4723,10 @@ function LuCI2()
 			_luci2.ui.restoreScrollTop();
 		},
 
-		_remove: function(ev)
+		_ev_remove: function(ev)
 		{
 			var self = ev.data.self;
 			var sid  = ev.data.sid;
-
-			if (ev.data.index == (self.sections().length - 1))
-				self.active_panel = -1;
 
 			_luci2.ui.saveScrollTop();
 
@@ -4702,7 +4739,7 @@ function LuCI2()
 			ev.stopPropagation();
 		},
 
-		_sid: function(ev)
+		_ev_sid: function(ev)
 		{
 			var self = ev.data.self;
 			var text = $(this);
@@ -4745,6 +4782,80 @@ function LuCI2()
 			text.removeClass('error');
 			addb.prop('disabled', false);
 			return true;
+		},
+
+		_ev_tab: function(ev)
+		{
+			var self = ev.data.self;
+			var sid  = ev.data.sid;
+
+			self.validate();
+			self.active_tab[sid] = parseInt(ev.target.getAttribute('data-luci2-tab-index'));
+		},
+
+		_ev_panel_collapse: function(ev)
+		{
+			var self = ev.data.self;
+
+			var this_panel = $(ev.target);
+			var this_toggle = this_panel.prevAll('[data-toggle="collapse"]:first');
+
+			var prev_toggle = $($(ev.delegateTarget).find('[data-toggle="collapse"]:eq(%d)'.format(self.active_panel)));
+			var prev_panel = $(prev_toggle.attr('data-target'));
+
+			prev_panel
+				.removeClass('in')
+				.addClass('collapse');
+
+			prev_toggle.find('.luci2-section-teaser')
+				.show()
+				.children('span:last')
+				.empty()
+				.append(self.teaser(prev_panel.attr('data-luci2-sid')));
+
+			this_toggle.find('.luci2-section-teaser')
+				.hide();
+
+			self.active_panel = parseInt(this_panel.attr('data-luci2-panel-index'));
+			self.validate();
+		},
+
+		_ev_panel_open: function(ev)
+		{
+			var self  = ev.data.self;
+			var panel = $($(this).attr('data-target'));
+			var index = parseInt(panel.attr('data-luci2-panel-index'));
+
+			if (index == self.active_panel)
+				ev.stopPropagation();
+		},
+
+		_ev_sort: function(ev)
+		{
+			var self    = ev.data.self;
+			var cur_idx = ev.data.index;
+			var new_idx = cur_idx + (ev.data.up ? -1 : 1);
+			var s       = self.sections();
+
+			if (new_idx >= 0 && new_idx < s.length)
+			{
+				var tmp = s[cur_idx]['.index'];
+
+				s[cur_idx]['.index'] = s[new_idx]['.index'];
+				s[new_idx]['.index'] = tmp;
+
+				if (self.active_panel == cur_idx)
+					self.active_panel = new_idx;
+				else if (self.active_panel == new_idx)
+					self.active_panel = cur_idx;
+
+				self.map.uci.reorder = true;
+
+				self.map.save();
+				self.map.redraw();
+			}
+
+			ev.stopPropagation();
 		},
 
 		teaser: function(sid)
@@ -4795,6 +4906,9 @@ function LuCI2()
 
 		_render_add: function()
 		{
+			if (!this.options.addremove)
+				return null;
+
 			var text = _luci2.tr('Add section');
 			var ttip = _luci2.tr('Create new section...');
 
@@ -4803,7 +4917,7 @@ function LuCI2()
 			else if (typeof(this.options.add_caption) == 'string')
 				text = this.options.add_caption, ttip = '';
 
-			var add = $('<div />').addClass('cbi-section-add');
+			var add = $('<div />');
 
 			if (this.options.anonymous === false)
 			{
@@ -4811,15 +4925,15 @@ function LuCI2()
 					.addClass('cbi-input-text')
 					.attr('type', 'text')
 					.attr('placeholder', ttip)
-					.blur({ self: this }, this._sid)
-					.keyup({ self: this }, this._sid)
+					.blur({ self: this }, this._ev_sid)
+					.keyup({ self: this }, this._ev_sid)
 					.appendTo(add);
 
 				$('<img />')
 					.attr('src', _luci2.globals.resource + '/icons/cbi/add.gif')
 					.attr('title', text)
 					.addClass('cbi-button')
-					.click({ self: this }, this._add)
+					.click({ self: this }, this._ev_add)
 					.appendTo(add);
 
 				$('<div />')
@@ -4829,13 +4943,9 @@ function LuCI2()
 			}
 			else
 			{
-				$('<input />')
-					.attr('type', 'button')
-					.addClass('cbi-button')
-					.addClass('cbi-button-add')
-					.val(text).attr('title', ttip)
-					.click({ self: this }, this._add)
-					.appendTo(add)
+				_luci2.ui.button(text, 'success', ttip)
+					.click({ self: this }, this._ev_add)
+					.appendTo(add);
 			}
 
 			return add;
@@ -4843,6 +4953,9 @@ function LuCI2()
 
 		_render_remove: function(sid, index)
 		{
+			if (!this.options.addremove)
+				return null;
+
 			var text = _luci2.tr('Remove');
 			var ttip = _luci2.tr('Remove this section');
 
@@ -4851,59 +4964,205 @@ function LuCI2()
 			else if (typeof(this.options.remove_caption) == 'string')
 				text = this.options.remove_caption, ttip = '';
 
-			return $('<input />')
-				.attr('type', 'button')
-				.addClass('cbi-button')
-				.addClass('cbi-button-remove')
-				.val(text).attr('title', ttip)
-				.click({ self: this, sid: sid, index: index }, this._remove);
+			return _luci2.ui.button(text, 'danger', ttip)
+				.click({ self: this, sid: sid, index: index }, this._ev_remove);
 		},
 
-		_render_caption: function(sid)
+		_render_sort: function(sid, index)
 		{
-			if (typeof(this.options.caption) == 'string')
-			{
-				return $('<legend />')
-					.text(this.options.caption.format(sid));
-			}
-			else if (typeof(this.options.caption) == 'function')
-			{
-				return $('<legend />')
-					.text(this.options.caption.call(this, sid));
-			}
+			if (!this.options.sortable)
+				return null;
 
-			return '';
+			var b1 = _luci2.ui.button('↑', 'info', _luci2.tr('Move up'))
+				.click({ self: this, index: index, up: true }, this._ev_sort);
+
+			var b2 = _luci2.ui.button('↓', 'info', _luci2.tr('Move down'))
+				.click({ self: this, index: index, up: false }, this._ev_sort);
+
+			return b1.add(b2);
 		},
 
-		render: function()
+		_render_caption: function()
 		{
-			var allsections = $();
-			var panel_index = 0;
+			return $('<h3 />')
+				.addClass('panel-title')
+				.append(this.label('caption') || this.uci_type);
+		},
 
-			this.instance = { };
+		_render_description: function()
+		{
+			var text = this.label('description');
 
+			if (text)
+				return $('<div />')
+					.addClass('luci2-section-description')
+					.text(text);
+
+			return null;
+		},
+
+		_render_teaser: function(sid, index)
+		{
+			if (this.options.collabsible || this.map.options.collabsible)
+			{
+				return $('<div />')
+					.attr('id', this.id('teaser', sid))
+					.addClass('luci2-section-teaser well well-sm')
+					.append($('<span />')
+						.addClass('badge'))
+					.append($('<span />'));
+			}
+
+			return null;
+		},
+
+		_render_head: function(condensed)
+		{
+			if (condensed)
+				return null;
+
+			return $('<div />')
+				.addClass('panel-heading')
+				.append(this._render_caption())
+				.append(this._render_description());
+		},
+
+		_render_tab_description: function(sid, index, tab_index)
+		{
+			var tab = this.tabs[tab_index];
+
+			if (typeof(tab.description) == 'string')
+			{
+				return $('<div />')
+					.addClass('cbi-tab-descr')
+					.text(tab.description);
+			}
+
+			return null;
+		},
+
+		_render_tab_head: function(sid, index, tab_index)
+		{
+			var tab = this.tabs[tab_index];
+			var cur = this.active_tab[sid] || 0;
+
+			var tabh = $('<li />')
+				.append($('<a />')
+					.attr('id', this.id('nodetab', sid, tab.id))
+					.attr('href', '#' + this.id('node', sid, tab.id))
+					.attr('data-toggle', 'tab')
+					.attr('data-luci2-tab-index', tab_index)
+					.text((tab.caption ? tab.caption.format(tab.id) : tab.id) + ' ')
+					.append($('<span />')
+						.addClass('badge'))
+					.on('shown.bs.tab', { self: this, sid: sid }, this._ev_tab));
+
+			if (cur == tab_index)
+				tabh.addClass('active');
+
+			return tabh;
+		},
+
+		_render_tab_body: function(sid, index, tab_index)
+		{
+			var tab = this.tabs[tab_index];
+			var cur = this.active_tab[sid] || 0;
+
+			var tabb = $('<div />')
+				.addClass('tab-pane')
+				.attr('id', this.id('node', sid, tab.id))
+				.attr('data-luci2-tab-index', tab_index)
+				.append(this._render_tab_description(sid, index, tab_index));
+
+			if (cur == tab_index)
+				tabb.addClass('active');
+
+			for (var i = 0; i < tab.fields.length; i++)
+				tabb.append(tab.fields[i].render(sid));
+
+			return tabb;
+		},
+
+		_render_section_head: function(sid, index)
+		{
+			var head = $('<div />')
+				.addClass('luci2-section-header')
+				.append(this._render_teaser(sid, index))
+				.append($('<div />')
+					.addClass('btn-group')
+					.append(this._render_sort(sid, index))
+					.append(this._render_remove(sid, index)));
+
+			if (this.options.collabsible)
+			{
+				head.attr('data-toggle', 'collapse')
+					.attr('data-parent', this.id('sectiongroup'))
+					.attr('data-target', '#' + this.id('panel', sid))
+					.on('click', { self: this }, this._ev_panel_open);
+			}
+
+			return head;
+		},
+
+		_render_section_body: function(sid, index)
+		{
+			var body = $('<div />')
+				.attr('id', this.id('panel', sid))
+				.attr('data-luci2-panel-index', index)
+				.attr('data-luci2-sid', sid);
+
+			if (this.options.collabsible || this.map.options.collabsible)
+			{
+				body.addClass('panel-collapse collapse');
+
+				if (index == this.active_panel)
+					body.addClass('in');
+			}
+
+			var tab_heads = $('<ul />')
+				.addClass('nav nav-tabs');
+
+			var tab_bodies = $('<div />')
+				.addClass('form-horizontal tab-content')
+				.append(tab_heads);
+
+			for (var j = 0; j < this.tabs.length; j++)
+			{
+				tab_heads.append(this._render_tab_head(sid, index, j));
+				tab_bodies.append(this._render_tab_body(sid, index, j));
+			}
+
+			body.append(tab_bodies);
+
+			if (this.tabs.length <= 1)
+				tab_heads.hide();
+
+			return body;
+		},
+
+		_render_body: function(condensed)
+		{
 			var s = this.sections();
+
+			if (this.active_panel < 0)
+				this.active_panel += s.length;
+			else if (this.active_panel >= s.length)
+				this.active_panel = s.length - 1;
+
+			var body = $('<ul />')
+				.addClass('list-group');
+
+			if (this.options.collabsible)
+			{
+				body.attr('id', this.id('sectiongroup'))
+					.on('show.bs.collapse', { self: this }, this._ev_panel_collapse);
+			}
 
 			if (s.length == 0)
 			{
-				var fieldset = $('<fieldset />')
-					.addClass('cbi-section');
-
-				var head = $('<div />')
-					.addClass('cbi-section-head')
-					.appendTo(fieldset);
-
-				head.append(this._render_caption(undefined));
-
-				if (typeof(this.options.description) == 'string')
-				{
-					$('<div />')
-						.addClass('cbi-section-descr')
-						.text(this.options.description)
-						.appendTo(head);
-				}
-
-				allsections = allsections.add(fieldset);
+				body.append($('<li />')
+					.addClass('list-group-item text-muted')
+					.text(this.label('placeholder') || _luci2.tr('There are no entries defined yet.')))
 			}
 
 			for (var i = 0; i < s.length; i++)
@@ -4911,168 +5170,30 @@ function LuCI2()
 				var sid = s[i]['.name'];
 				var inst = this.instance[sid] = { tabs: [ ] };
 
-				var fieldset = $('<fieldset />')
-					.attr('id', this.id('sort', sid))
-					.addClass('cbi-section');
-
-				var head = $('<div />')
-					.addClass('cbi-section-head')
-					.attr('cbi-section-num', this.index)
-					.attr('cbi-section-id', sid);
-
-				head.append(this._render_caption(sid));
-
-				if (typeof(this.options.description) == 'string')
-				{
-					$('<div />')
-						.addClass('cbi-section-descr')
-						.text(this.options.description)
-						.appendTo(head);
-				}
-
-				var teaser;
-				if ((s.length > 1 && this.options.collabsible) || this.map.options.collabsible)
-					teaser = $('<div />')
-						.addClass('cbi-section-teaser')
-						.appendTo(head);
-
-				if (this.options.addremove)
-					$('<div />')
-						.addClass('cbi-section-remove')
-						.addClass('right')
-						.append(this._render_remove(sid, panel_index))
-						.appendTo(head);
-
-				var body = $('<div />')
-					.attr('index', panel_index++);
-
-				var fields = $('<fieldset />')
-					.addClass('cbi-section-node');
-
-				if (this.tabs.length > 1)
-				{
-					var menu = $('<ul />')
-						.addClass('cbi-tabmenu');
-
-					for (var j = 0; j < this.tabs.length; j++)
-					{
-						var tabid = this.id('tab', sid, this.tabs[j].id);
-						var theadid = this.id('tabhead', sid, this.tabs[j].id);
-
-						var tabc = $('<div />')
-							.addClass('cbi-tabcontainer')
-							.attr('id', tabid)
-							.attr('index', j);
-
-						if (typeof(this.tabs[j].description) == 'string')
-						{
-							$('<div />')
-								.addClass('cbi-tab-descr')
-								.text(this.tabs[j].description)
-								.appendTo(tabc);
-						}
-
-						for (var k = 0; k < this.tabs[j].fields.length; k++)
-							this.tabs[j].fields[k].render(sid).appendTo(tabc);
-
-						tabc.appendTo(fields);
-						tabc = null;
-
-						$('<li />').attr('id', theadid).append(
-							$('<a />')
-								.text(this.tabs[j].caption.format(this.tabs[j].id))
-								.attr('href', '#' + tabid)
-						).appendTo(menu);
-					}
-
-					menu.appendTo(body);
-					menu = null;
-
-					fields.appendTo(body);
-					fields = null;
-
-					var t = body.tabs({ active: this.active_tab[sid] });
-
-					t.on('tabsactivate', { self: this, sid: sid }, function(ev, ui) {
-						var d = ev.data;
-						d.self.validate();
-						d.self.active_tab[d.sid] = parseInt(ui.newPanel.attr('index'));
-					});
-				}
-				else
-				{
-					for (var j = 0; j < this.tabs[0].fields.length; j++)
-						this.tabs[0].fields[j].render(sid).appendTo(fields);
-
-					fields.appendTo(body);
-					fields = null;
-				}
-
-				head.appendTo(fieldset);
-				head = null;
-
-				body.appendTo(fieldset);
-				body = null;
-
-				allsections = allsections.add(fieldset);
-				fieldset = null;
-
-				//this.validate(sid);
-				//
-				//if (teaser)
-				//	teaser.append(this.teaser(sid));
+				body.append($('<li />')
+					.addClass('list-group-item')
+					.append(this._render_section_head(sid, i))
+					.append(this._render_section_body(sid, i)));
 			}
 
-			if (this.options.collabsible && s.length > 1)
-			{
-				var a = $('<div />').append(allsections).accordion({
-					header: '> fieldset > div.cbi-section-head',
-					heightStyle: 'content',
-					active: this.active_panel
-				});
+			return body;
+		},
 
-				a.on('accordionbeforeactivate', { self: this }, function(ev, ui) {
-					var h = ui.oldHeader;
-					var s = ev.data.self;
-					var i = h.attr('cbi-section-id');
+		render: function(condensed)
+		{
+			this.instance = { };
 
-					h.children('.cbi-section-teaser').empty().append(s.teaser(i));
-					s.validate();
-				});
-
-				a.on('accordionactivate', { self: this }, function(ev, ui) {
-					ev.data.self.active_panel = parseInt(ui.newPanel.attr('index'));
-				});
-
-				if (this.options.sortable)
-				{
-					var s = a.sortable({
-						axis: 'y',
-						handle: 'div.cbi-section-head'
-					});
-
-					s.on('sortupdate', { self: this, ids: s.sortable('toArray') }, function(ev, ui) {
-						var sections = [ ];
-						for (var i = 0; i < ev.data.ids.length; i++)
-							sections.push(ev.data.ids[i].substring(ev.data.ids[i].lastIndexOf('.') + 1));
-						_luci2.uci.order(ev.data.self.map.uci_package, sections);
-					});
-
-					s.on('sortstop', function(ev, ui) {
-						ui.item.children('div.cbi-section-head').triggerHandler('focusout');
-					});
-				}
-
-				if (this.options.addremove)
-					this._render_add().appendTo(a);
-
-				return a;
-			}
+			var panel = $('<div />')
+				.addClass('panel panel-default')
+				.append(this._render_head(condensed))
+				.append(this._render_body(condensed));
 
 			if (this.options.addremove)
-				allsections = allsections.add(this._render_add());
+				panel.append($('<div />')
+					.addClass('panel-footer')
+					.append(this._render_add()));
 
-			return allsections;
+			return panel;
 		},
 
 		finish: function()
@@ -5083,78 +5204,82 @@ function LuCI2()
 			{
 				var sid = s[i]['.name'];
 
-				this.validate(sid);
+				this.validate_section(sid);
 
-				$('#' + this.id('sort', sid))
-					.children('.cbi-section-head')
-					.children('.cbi-section-teaser')
-					.append(this.teaser(sid));
+				if (i != this.active_panel)
+					$('#' + this.id('teaser', sid)).children('span:last')
+						.append(this.teaser(sid));
+				else
+					$('#' + this.id('teaser', sid))
+						.hide();
 			}
 		}
 	});
 
 	this.cbi.TableSection = this.cbi.TypedSection.extend({
-		render: function()
+		_render_table_head: function()
 		{
-			var allsections = $();
-			var panel_index = 0;
-
-			this.instance = { };
-
-			var s = this.sections();
-
-			var fieldset = $('<fieldset />')
-				.addClass('cbi-section');
-
-			fieldset.append(this._render_caption(sid));
-
-			if (typeof(this.options.description) == 'string')
-			{
-				$('<div />')
-					.addClass('cbi-section-descr')
-					.text(this.options.description)
-					.appendTo(fieldset);
-			}
-
-			var fields = $('<div />')
-				.addClass('cbi-section-node')
-				.appendTo(fieldset);
-
-			var table = $('<table />')
-				.addClass('cbi-section-table')
-				.appendTo(fields);
-
 			var thead = $('<thead />')
-				.append($('<tr />').addClass('cbi-section-table-titles'))
-				.appendTo(table);
+				.append($('<tr />')
+					.addClass('cbi-section-table-titles'));
 
 			for (var j = 0; j < this.tabs[0].fields.length; j++)
-				$('<th />')
+				thead.children().append($('<th />')
 					.addClass('cbi-section-table-cell')
 					.css('width', this.tabs[0].fields[j].options.width || '')
-					.append(this.tabs[0].fields[j].options.caption)
-					.appendTo(thead.children());
+					.append(this.tabs[0].fields[j].label('caption')));
 
-			if (this.options.sortable)
-				$('<th />').addClass('cbi-section-table-cell').text(' ').appendTo(thead.children());
+			if (this.options.addremove !== false || this.options.sortable)
+				thead.children().append($('<th />')
+					.addClass('cbi-section-table-cell')
+					.text(' '));
 
-			if (this.options.addremove !== false)
-				$('<th />').addClass('cbi-section-table-cell').text(' ').appendTo(thead.children());
+			return thead;
+		},
 
-			var tbody = $('<tbody />')
-				.appendTo(table);
+		_render_table_row: function(sid, index)
+		{
+			var row = $('<tr />')
+				.attr('data-luci2-sid', sid);
+
+			for (var j = 0; j < this.tabs[0].fields.length; j++)
+			{
+				row.append($('<td />')
+					.css('width', this.tabs[0].fields[j].options.width || '')
+					.append(this.tabs[0].fields[j].render(sid, true)));
+			}
+
+			if (this.options.addremove !== false || this.options.sortable)
+			{
+				row.append($('<td />')
+					.addClass('text-right')
+					.append($('<div />')
+						.addClass('btn-group')
+						.append(this._render_sort(sid, index))
+						.append(this._render_remove(sid, index))));
+			}
+
+			return row;
+		},
+
+		_render_table_body: function()
+		{
+			var s = this.sections();
+
+			var tbody = $('<tbody />');
 
 			if (s.length == 0)
 			{
-				$('<tr />')
-					.addClass('cbi-section-table-row')
-					.append(
-						$('<td />')
-							.addClass('cbi-section-table-cell')
-							.addClass('cbi-section-table-placeholder')
-							.attr('colspan', thead.children().children().length)
-							.text(this.options.placeholder || _luci2.tr('This section contains no values yet')))
-					.appendTo(tbody);
+				var cols = this.tabs[0].fields.length;
+
+				if (this.options.addremove !== false || this.options.sortable)
+					cols++;
+
+				tbody.append($('<tr />')
+					.append($('<td />')
+						.addClass('text-muted')
+						.attr('colspan', cols)
+						.text(this.label('placeholder') || _luci2.tr('There are no entries defined yet.'))));
 			}
 
 			for (var i = 0; i < s.length; i++)
@@ -5162,67 +5287,18 @@ function LuCI2()
 				var sid = s[i]['.name'];
 				var inst = this.instance[sid] = { tabs: [ ] };
 
-				var row = $('<tr />')
-					.addClass('cbi-section-table-row')
-					.appendTo(tbody);
-
-				for (var j = 0; j < this.tabs[0].fields.length; j++)
-				{
-					$('<td />')
-						.addClass('cbi-section-table-cell')
-						.css('width', this.tabs[0].fields[j].options.width || '')
-						.append(this.tabs[0].fields[j].render(sid, true))
-						.appendTo(row);
-				}
-
-				if (this.options.sortable)
-				{
-					$('<td />')
-						.addClass('cbi-section-table-cell')
-						.addClass('cbi-section-table-sort')
-						.append($('<img />').attr('src', _luci2.globals.resource + '/icons/cbi/up.gif').attr('title', _luci2.tr('Drag to sort')))
-						.append($('<br />'))
-						.append($('<img />').attr('src', _luci2.globals.resource + '/icons/cbi/down.gif').attr('title', _luci2.tr('Drag to sort')))
-						.appendTo(row);
-				}
-
-				if (this.options.addremove !== false)
-				{
-					$('<td />')
-						.addClass('cbi-section-table-cell')
-						.append(this._render_remove(sid))
-						.appendTo(row);
-				}
-
-				this.validate(sid);
-
-				row = null;
+				tbody.append(this._render_table_row(sid, i));
 			}
 
-			if (this.options.sortable)
-			{
-				var s = tbody.sortable({
-					handle: 'td.cbi-section-table-sort'
-				});
+			return tbody;
+		},
 
-				s.on('sortupdate', { self: this, ids: s.sortable('toArray') }, function(ev, ui) {
-					var sections = [ ];
-					for (var i = 0; i < ev.data.ids.length; i++)
-						sections.push(ev.data.ids[i].substring(ev.data.ids[i].lastIndexOf('.') + 1));
-					_luci2.uci.order(ev.data.self.map.uci_package, sections);
-				});
-
-				s.on('sortstop', function(ev, ui) {
-					ui.item.children('div.cbi-section-head').triggerHandler('focusout');
-				});
-			}
-
-			if (this.options.addremove)
-				this._render_add().appendTo(fieldset);
-
-			fields = table = thead = tbody = null;
-
-			return fieldset;
+		_render_body: function(condensed)
+		{
+			return $('<table />')
+				.addClass('table table-condensed table-hover')
+				.append(this._render_table_head())
+				.append(this._render_table_body());
 		}
 	});
 
@@ -5256,7 +5332,7 @@ function LuCI2()
 		}
 	});
 
-	this.cbi.Map = AbstractWidget.extend({
+	this.cbi.Map = this.ui.AbstractWidget.extend({
 		init: function(uci_package, options)
 		{
 			var self = this;
@@ -5273,18 +5349,48 @@ function LuCI2()
 			});
 		},
 
+		_load_cb: function(packages)
+		{
+			for (var i = 0; i < packages.length; i++)
+			{
+				this.uci.values[packages[i]['.package']] = packages[i];
+				delete packages[i]['.package'];
+			}
+
+			var deferreds = [ _luci2.deferrable(this.options.prepare()) ];
+
+			for (var i = 0; i < this.sections.length; i++)
+			{
+				for (var f in this.sections[i].fields)
+				{
+					if (typeof(this.sections[i].fields[f].load) != 'function')
+						continue;
+
+					var s = this.sections[i].sections();
+					for (var j = 0; j < s.length; j++)
+					{
+						var rv = this.sections[i].fields[f].load(s[j]['.name']);
+						if (_luci2.isDeferred(rv))
+							deferreds.push(rv);
+					}
+				}
+			}
+
+			return $.when.apply($, deferreds);
+		},
+
 		load: function()
 		{
+			var self = this;
+
 			this.uci = {
 				newid:   0,
 				values:  { },
 				creates: { },
 				changes: { },
-				deletes: { }
+				deletes: { },
+				reorder: false
 			};
-
-			if (typeof(this.active_panel) == 'undefined')
-				this.active_panel = 0;
 
 			var packages = { };
 
@@ -5293,126 +5399,125 @@ function LuCI2()
 
 			packages[this.uci_package] = true;
 
-			var load_cb = this._load_cb || (this._load_cb = $.proxy(function(packages) {
-				for (var i = 0; i < packages.length; i++)
-				{
-					this.uci.values[packages[i]['.package']] = packages[i];
-					delete packages[i]['.package'];
-				}
-
-				var deferreds = [ _luci2.deferrable(this.options.prepare()) ];
-
-				for (var i = 0; i < this.sections.length; i++)
-				{
-					for (var f in this.sections[i].fields)
-					{
-						if (typeof(this.sections[i].fields[f].load) != 'function')
-							continue;
-
-						var s = this.sections[i].sections();
-						for (var j = 0; j < s.length; j++)
-						{
-							var rv = this.sections[i].fields[f].load(s[j]['.name']);
-							if (_luci2.isDeferred(rv))
-								deferreds.push(rv);
-						}
-					}
-				}
-
-				return $.when.apply($, deferreds);
-			}, this));
-
 			_luci2.rpc.batch();
 
 			for (var pkg in packages)
 				_luci2.uci.get_all(pkg);
 
-			return _luci2.rpc.flush().then(load_cb);
+			return _luci2.rpc.flush().then(function(packages) {
+				return self._load_cb(packages);
+			});
+		},
+
+		_ev_tab: function(ev)
+		{
+			var self = ev.data.self;
+
+			self.validate();
+			self.active_tab = parseInt(ev.target.getAttribute('data-luci2-tab-index'));
+		},
+
+		_render_tab_head: function(tab_index)
+		{
+			var section = this.sections[tab_index];
+			var cur = this.active_tab || 0;
+
+			var tabh = $('<li />')
+				.append($('<a />')
+					.attr('id', section.id('sectiontab'))
+					.attr('href', '#' + section.id('section'))
+					.attr('data-toggle', 'tab')
+					.attr('data-luci2-tab-index', tab_index)
+					.text(section.label('caption') + ' ')
+					.append($('<span />')
+						.addClass('badge'))
+					.on('shown.bs.tab', { self: this }, this._ev_tab));
+
+			if (cur == tab_index)
+				tabh.addClass('active');
+
+			return tabh;
+		},
+
+		_render_tab_body: function(tab_index)
+		{
+			var section = this.sections[tab_index];
+			var desc = section.label('description');
+			var cur = this.active_tab || 0;
+
+			var tabb = $('<div />')
+				.addClass('tab-pane')
+				.attr('id', section.id('section'))
+				.attr('data-luci2-tab-index', tab_index);
+
+			if (cur == tab_index)
+				tabb.addClass('active');
+
+			if (desc)
+				tabb.append($('<p />')
+					.text(desc));
+
+			var s = section.render(this.options.tabbed);
+
+			if (this.options.readonly || section.options.readonly)
+				s.find('input, select, button, img.cbi-button').attr('disabled', true);
+
+			tabb.append(s);
+
+			return tabb;
+		},
+
+		_render_body: function()
+		{
+			var tabs = $('<ul />')
+				.addClass('nav nav-tabs');
+
+			var body = $('<div />')
+				.append(tabs);
+
+			for (var i = 0; i < this.sections.length; i++)
+			{
+				tabs.append(this._render_tab_head(i));
+				body.append(this._render_tab_body(i));
+			}
+
+			if (this.options.tabbed)
+				body.addClass('tab-content');
+			else
+				tabs.hide();
+
+			return body;
 		},
 
 		render: function()
 		{
-			var map = $('<div />').addClass('cbi-map');
+			var map = $('<form />');
 
 			if (typeof(this.options.caption) == 'string')
-				$('<h2 />').text(this.options.caption).appendTo(map);
+				map.append($('<h2 />')
+					.text(this.options.caption));
 
 			if (typeof(this.options.description) == 'string')
-				$('<div />').addClass('cbi-map-descr').text(this.options.description).appendTo(map);
+				map.append($('<p />')
+					.text(this.options.description));
 
-			var sections = $('<div />').appendTo(map);
-
-			for (var i = 0; i < this.sections.length; i++)
-			{
-				var s = this.sections[i].render();
-
-				if (this.options.readonly || this.sections[i].options.readonly)
-					s.find('input, select, button, img.cbi-button').attr('disabled', true);
-
-				s.appendTo(sections);
-
-				if (this.sections[i].options.active)
-					this.active_panel = i;
-			}
-
-			if (this.options.collabsible)
-			{
-				var a = sections.accordion({
-					header: '> fieldset > div.cbi-section-head',
-					heightStyle: 'content',
-					active: this.active_panel
-				});
-
-				a.on('accordionbeforeactivate', { self: this }, function(ev, ui) {
-					var h = ui.oldHeader;
-					var s = ev.data.self.sections[parseInt(h.attr('cbi-section-num'))];
-					var i = h.attr('cbi-section-id');
-
-					h.children('.cbi-section-teaser').empty().append(s.teaser(i));
-
-					for (var i = 0; i < ev.data.self.sections.length; i++)
-						ev.data.self.sections[i].validate();
-				});
-
-				a.on('accordionactivate', { self: this }, function(ev, ui) {
-					ev.data.self.active_panel = parseInt(ui.newPanel.attr('index'));
-				});
-			}
+			map.append(this._render_body());
 
 			if (this.options.pageaction !== false)
 			{
-				var a = $('<div />')
-					.addClass('cbi-page-actions')
-					.appendTo(map);
-
-				$('<input />')
-					.addClass('cbi-button').addClass('cbi-button-apply')
-					.attr('type', 'button')
-					.val(_luci2.tr('Save & Apply'))
-					.appendTo(a);
-
-				$('<input />')
-					.addClass('cbi-button').addClass('cbi-button-save')
-					.attr('type', 'button')
-					.val(_luci2.tr('Save'))
-					.click({ self: this }, function(ev) { ev.data.self.send(); })
-					.appendTo(a);
-
-				$('<input />')
-					.addClass('cbi-button').addClass('cbi-button-reset')
-					.attr('type', 'button')
-					.val(_luci2.tr('Reset'))
-					.click({ self: this }, function(ev) { ev.data.self.insertInto(ev.data.self.target); })
-					.appendTo(a);
-
-				a = null;
+				map.append($('<div />')
+					.addClass('panel panel-default panel-body text-right')
+					.append($('<div />')
+						.addClass('btn-group')
+						.append(_luci2.ui.button(_luci2.tr('Save & Apply'), 'primary')
+							.click({ self: this }, function(ev) {  }))
+						.append(_luci2.ui.button(_luci2.tr('Save'), 'default')
+							.click({ self: this }, function(ev) { ev.data.self.send(); }))
+						.append(_luci2.ui.button(_luci2.tr('Reset'), 'default')
+							.click({ self: this }, function(ev) { ev.data.self.insertInto(ev.data.self.target); }))));
 			}
 
-			var top = $('<form />').append(map);
-
-			map = null;
-
-			return top;
+			return map;
 		},
 
 		finish: function()
@@ -5473,7 +5578,8 @@ function LuCI2()
 				'.type':      type,
 				'.name':      s,
 				'.create':    name,
-				'.anonymous': !name
+				'.anonymous': !name,
+				'.index':     1000 + this.uci.newid
 			};
 
 			return s;
@@ -5517,11 +5623,16 @@ function LuCI2()
 				if (!del || del[s] !== true)
 					sa.push(pkg[s]);
 
-			sa.sort(function(a, b) { return a['.index'] - b['.index'] });
-
 			if (crt)
 				for (var s in crt)
 					sa.push(crt[s]);
+
+			sa.sort(function(a, b) {
+				return a['.index'] - b['.index'];
+			});
+
+			for (var i = 0; i < sa.length; i++)
+				sa[i]['.index'] = i;
 
 			if (typeof(cb) == 'function')
 				for (var i = 0; i < sa.length; i++)
@@ -5624,8 +5735,10 @@ function LuCI2()
 			var rv = true;
 
 			for (var i = 0; i < this.sections.length; i++)
+			{
 				if (!this.sections[i].validate())
 					rv = false;
+			}
 
 			return rv;
 		},
@@ -5660,60 +5773,117 @@ function LuCI2()
 			return $.when.apply($, deferreds);
 		},
 
+		_send_uci_reorder: function()
+		{
+			if (!this.uci.reorder)
+				return _luci2.deferrable();
+
+			_luci2.rpc.batch();
+
+			/*
+			 gather all created and existing sections, sort them according
+			 to their index value and issue an uci order call
+			*/
+			for (var c in this.uci.values)
+			{
+				var o = [ ];
+
+				if (this.uci.creates && this.uci.creates[c])
+					for (var s in this.uci.creates[c])
+						o.push(this.uci.creates[c][s]);
+
+				for (var s in this.uci.values[c])
+					o.push(this.uci.values[c][s]);
+
+				if (o.length > 0)
+				{
+					o.sort(function(a, b) {
+						return (a['.index'] - b['.index']);
+					});
+
+					var sids = [ ];
+
+					for (var i = 0; i < o.length; i++)
+						sids.push(o[i]['.name']);
+
+					_luci2.uci.order(c, sids);
+				}
+			}
+
+			return _luci2.rpc.flush();
+		},
+
+		_send_uci: function()
+		{
+			_luci2.rpc.batch();
+
+			var self = this;
+			var snew = [ ];
+
+			if (this.uci.creates)
+				for (var c in this.uci.creates)
+					for (var s in this.uci.creates[c])
+					{
+						var r = {
+							config: c,
+							values: { }
+						};
+
+						for (var k in this.uci.creates[c][s])
+						{
+							if (k == '.type')
+								r.type = this.uci.creates[c][s][k];
+							else if (k == '.create')
+								r.name = this.uci.creates[c][s][k];
+							else if (k.charAt(0) != '.')
+								r.values[k] = this.uci.creates[c][s][k];
+						}
+
+						snew.push(this.uci.creates[c][s]);
+
+						_luci2.uci.add(r.config, r.type, r.name, r.values);
+					}
+
+			if (this.uci.changes)
+				for (var c in this.uci.changes)
+					for (var s in this.uci.changes[c])
+						_luci2.uci.set(c, s, this.uci.changes[c][s]);
+
+			if (this.uci.deletes)
+				for (var c in this.uci.deletes)
+					for (var s in this.uci.deletes[c])
+					{
+						var o = this.uci.deletes[c][s];
+						_luci2.uci['delete'](c, s, (o === true) ? undefined : o);
+					}
+
+			return _luci2.rpc.flush().then(function(responses) {
+				/*
+				 array "snew" holds references to the created uci sections,
+				 use it to assign the returned names of the new sections
+				*/
+				for (var i = 0; i < snew.length; i++)
+					snew[i]['.name'] = responses[i];
+
+				return self._send_uci_reorder();
+			});
+		},
+
 		send: function()
 		{
 			if (!this.validate())
 				return _luci2.deferrable();
-
-			var send_cb = this._send_cb || (this._send_cb = $.proxy(function() {
-				_luci2.rpc.batch();
-
-				if (this.uci.creates)
-					for (var c in this.uci.creates)
-						for (var s in this.uci.creates[c])
-						{
-							var r = {
-								config: c,
-								values: { }
-							};
-
-							for (var k in this.uci.creates[c][s])
-							{
-								if (k == '.type')
-									r.type = this.uci.creates[c][s][k];
-								else if (k == '.create')
-									r.name = this.uci.creates[c][s][k];
-								else if (k.charAt(0) != '.')
-									r.values[k] = this.uci.creates[c][s][k];
-							}
-
-							_luci2.uci.add(r.config, r.type, r.name, r.values);
-						}
-
-				if (this.uci.changes)
-					for (var c in this.uci.changes)
-						for (var s in this.uci.changes[c])
-							_luci2.uci.set(c, s, this.uci.changes[c][s]);
-
-				if (this.uci.deletes)
-					for (var c in this.uci.deletes)
-						for (var s in this.uci.deletes[c])
-						{
-							var o = this.uci.deletes[c][s];
-							_luci2.uci['delete'](c, s, (o === true) ? undefined : o);
-						}
-
-				return _luci2.rpc.flush().then(function() {
-					return _luci2.ui.updateChanges();
-				});
-			}, this));
 
 			var self = this;
 
 			_luci2.ui.saveScrollTop();
 			_luci2.ui.loading(true);
 
-			return this.save().then(send_cb).then(function() {
+			return this.save().then(function() {
+				return self._send_uci();
+			}).then(function() {
+				return _luci2.ui.updateChanges();
+			}).then(function() {
 				return self.load();
 			}).then(function() {
 				self.redraw();

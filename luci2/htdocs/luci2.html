@@ -3,14 +3,17 @@
     <head>
         <title>LuCI2</title>
 
-        <link rel="stylesheet" href="/luci2/bootstrap/cascade.css">
+        <link rel="stylesheet" href="/luci2/css/bootstrap.css">
+        <link rel="stylesheet" href="/luci2/css/luci2.css">
 
-        <!--[if lt IE 9]><script src="/luci2/bootstrap/html5.js"></script><![endif]-->
+        <!--[if lt IE 9]><script src="/luci2/html5.js"></script><![endif]-->
 
         <script type="text/javascript" src="/luci2/jquery-1.9.1.js"></script>
-        <script type="text/javascript" src="/luci2/jquery-ui-1.10.3.custom.js"></script>
+        <script type="text/javascript" src="/luci2/jquery.peity.js"></script>
+        <script type="text/javascript" src="/luci2/bootstrap.js"></script>
         <script type="text/javascript" src="/luci2/luci2.js"></script>
 
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <meta http-equiv="content-type" content="text/html; charset=utf-8" />
 
         <script type="text/javascript">
@@ -24,24 +27,19 @@
         </script>
     </head>
     <body>
-        <header>
-            <div class="fill">
-                <div class="container">
-                    <a id="hostname" class="brand" href="#">&nbsp;</a>
-                    <div id="mainmenu"></div>
-
-                    <div class="pull-right" id="changes"></div>
-    <!--
-                    <div class="pull-right">
-                        <span id="xhr_poll_status" style="display:none" onclick="XHR.running() ? XHR.halt() : XHR.run()">
-                            <span class="label success" id="xhr_poll_status_on">Auto Refresh on</span>
-                            <span class="label" id="xhr_poll_status_off" style="display:none">Auto Refresh off</span>
-                        </span>
-                    </div>
-    -->
+        <div class="navbar navbar-inverse navbar-fixed-top" role="banner">
+            <div class="container">
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                    <a class="navbar-brand" href="#" id="hostname">&nbsp;</a>
                 </div>
+                <div class="collapse navbar-collapse" id="mainmenu"></div>
             </div>
-        </header>
+        </div>
 
         <div id="viewmenu"></div>
 
