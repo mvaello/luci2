@@ -228,8 +228,6 @@ L.ui.view.extend({
 						);
 					});
 				});
-		}).then(function() {
-			$('#tabs').show().tabs();
 		});
 	}
 });
