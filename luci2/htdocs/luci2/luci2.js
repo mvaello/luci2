@@ -214,7 +214,7 @@ function LuCI2()
 		_class.prototype = prototype;
 		_class.prototype.constructor = _class;
 
-		_class.extend = arguments.callee;
+		_class.extend = Class.extend;
 
 		return _class;
 	};
@@ -451,7 +451,7 @@ function LuCI2()
 						if (typeof(ret) != 'undefined' && key != '')
 							ret = ret[key];
 
-						if (type.call(ret) != type.call(req.expect[key]))
+						if (typeof(ret) == 'undefined' || type.call(ret) != type.call(req.expect[key]))
 							ret = req.expect[key];
 
 						break;
@@ -2920,7 +2920,7 @@ function LuCI2()
 								else if (typeof types[label] == 'function')
 								{
 									stack.push(types[label]);
-									stack.push(null);
+									stack.push([ ]);
 								}
 								else
 								{
@@ -2939,7 +2939,7 @@ function LuCI2()
 								throw "Syntax error, argument list follows non-function";
 
 							stack[stack.length-1] =
-								arguments.callee(code.substring(pos, i));
+								_luci2.cbi.validation.compile(code.substring(pos, i));
 
 							pos = i+1;
 						}
@@ -3389,6 +3389,7 @@ function LuCI2()
 			}
 
 			i.error = $('<div />')
+				.hide()
 				.addClass('label label-danger');
 
 			i.widget = $('<div />')
@@ -3525,7 +3526,7 @@ function LuCI2()
 					d.elem.parents('div.form-group, td').first().addClass('luci2-form-error');
 					d.elem.parents('div.input-group, div.form-group, td').first().addClass('has-error');
 
-					d.inst.error.text(_luci2.tr('Field must not be empty'));
+					d.inst.error.text(_luci2.tr('Field must not be empty')).show();
 					rv = false;
 				}
 				else if (val.length > 0 && !vstack[0].apply(val, vstack[1]))
@@ -3533,7 +3534,7 @@ function LuCI2()
 					d.elem.parents('div.form-group, td').first().addClass('luci2-form-error');
 					d.elem.parents('div.input-group, div.form-group, td').first().addClass('has-error');
 
-					d.inst.error.text(validation.message.format.apply(validation.message, vstack[1]));
+					d.inst.error.text(validation.message.format.apply(validation.message, vstack[1])).show();
 					rv = false;
 				}
 				else
@@ -3544,7 +3545,7 @@ function LuCI2()
 					if (d.multi && d.inst.widget && d.inst.widget.find('input.error, select.error').length > 0)
 						rv = false;
 					else
-						d.inst.error.text('');
+						d.inst.error.text('').hide();
 				}
 			}
 
@@ -3749,7 +3750,6 @@ function LuCI2()
 			if (typeof(o.disabled) == 'undefined') o.disabled = '0';
 
 			var i = $('<input />')
-				.addClass('form-control')
 				.attr('id', this.id(sid))
 				.attr('type', 'checkbox')
 				.prop('checked', this.ucivalue(sid));
@@ -4424,13 +4424,12 @@ function LuCI2()
 
 					$('<li />')
 						.append($('<label />')
-							.addClass('radio inline')
+							.addClass(itype + ' inline')
 							.append($('<input />')
 								.attr('name', itype + id)
 								.attr('type', itype)
 								.attr('value', iface['interface'])
-								.prop('checked', !!check[iface['interface']])
-								.addClass('form-control'))
+								.prop('checked', !!check[iface['interface']]))
 							.append(badge))
 						.appendTo(ul);
 				}
@@ -4440,13 +4439,12 @@ function LuCI2()
 			{
 				$('<li />')
 					.append($('<label />')
-						.addClass('radio inline text-muted')
+						.addClass(itype + ' inline text-muted')
 						.append($('<input />')
 							.attr('name', itype + id)
 							.attr('type', itype)
 							.attr('value', '')
-							.prop('checked', !value)
-							.addClass('form-control'))
+							.prop('checked', !value))
 						.append(_luci2.tr('unspecified')))
 					.appendTo(ul);
 			}
@@ -4611,19 +4609,21 @@ function LuCI2()
 						inval++;
 
 				if (inval > 0)
-					stbadge.text(inval)
+					stbadge.show()
+						.text(inval)
 						.attr('title', _luci2.trp('1 Error', '%d Errors', inval).format(inval));
 				else
-					stbadge.text('');
+					stbadge.hide();
 
 				invals += inval;
 			}
 
 			if (invals > 0)
-				badge.text(invals)
+				badge.show()
+					.text(invals)
 					.attr('title', _luci2.trp('1 Error', '%d Errors', invals).format(invals));
 			else
-				badge.text('');
+				badge.hide();
 
 			return invals;
 		},
@@ -4645,10 +4645,11 @@ function LuCI2()
 			var badge = $('#' + this.id('sectiontab')).children('span:first');
 
 			if (this.error_count > 0)
-				badge.text(this.error_count)
+				badge.show()
+					.text(this.error_count)
 					.attr('title', _luci2.trp('1 Error', '%d Errors', this.error_count).format(this.error_count));
 			else
-				badge.text('');
+				badge.hide();
 
 			return (this.error_count == 0);
 		}
