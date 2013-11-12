@@ -2195,6 +2195,81 @@ rpc_luci2_network_ifdown(struct ubus_context *ctx, struct ubus_object *obj,
 	return network_ifupdown(ctx, req, msg, false);
 }
 
+static int
+rpc_luci2_network_dev_list(struct ubus_context *ctx, struct ubus_object *obj,
+                           struct ubus_request_data *req, const char *method,
+                           struct blob_attr *msg)
+{
+	char path[PATH_MAX];
+	struct dirent *e;
+	struct stat s;
+	void *c, *t;
+	bool wireless, bridge, tuntap;
+	int type;
+	DIR *d;
+	FILE *f;
+
+	if (!(d = opendir("/sys/class/net")))
+		return rpc_errno_status();
+
+	blob_buf_init(&buf, 0);
+	c = blobmsg_open_array(&buf, "devices");
+
+	while ((e = readdir(d)) != NULL)
+	{
+		snprintf(path, sizeof(path) - 1, "/sys/class/net/%s/type", e->d_name);
+
+		if (stat(path, &s) || !S_ISREG(s.st_mode) || !(f = fopen(path, "r")))
+			continue;
+
+		type = 1;
+		memset(path, 0, sizeof(path));
+
+		if (fread(path, 1, sizeof(path) - 1, f) > 0)
+			type = atoi(path);
+
+		fclose(f);
+
+
+		snprintf(path, sizeof(path) - 1,
+		         "/sys/class/net/%s/wireless", e->d_name);
+
+		wireless = (!stat(path, &s) && S_ISDIR(s.st_mode));
+
+		snprintf(path, sizeof(path) - 1,
+		         "/sys/class/net/%s/phy80211", e->d_name);
+
+		wireless = (wireless || (!stat(path, &s) && S_ISLNK(s.st_mode)));
+
+		snprintf(path, sizeof(path) - 1,
+		         "/sys/class/net/%s/bridge", e->d_name);
+
+		bridge = (!stat(path, &s) && S_ISDIR(s.st_mode));
+
+		snprintf(path, sizeof(path) - 1,
+		         "/sys/class/net/%s/tun_flags", e->d_name);
+
+		tuntap = (!stat(path, &s) && S_ISREG(s.st_mode));
+
+		t = blobmsg_open_table(&buf, NULL);
+
+		blobmsg_add_string(&buf, "device", e->d_name);
+		blobmsg_add_u32(&buf, "type", type);
+		blobmsg_add_u8(&buf, "is_bridge", bridge);
+		blobmsg_add_u8(&buf, "is_tuntap", tuntap);
+		blobmsg_add_u8(&buf, "is_wireless", wireless);
+
+		blobmsg_close_table(&buf, t);
+	}
+
+	blobmsg_close_array(&buf, c);
+
+	closedir(d);
+
+	ubus_send_reply(ctx, req, buf.head);
+	return 0;
+}
+
 
 struct opkg_state {
 	int cur_offset;
@@ -2698,7 +2773,8 @@ rpc_luci2_api_init(const struct rpc_daemon_ops *o, struct ubus_context *ctx)
 		UBUS_METHOD("ifup",                  rpc_luci2_network_ifup,
 		                                     rpc_data_policy),
 		UBUS_METHOD("ifdown",                rpc_luci2_network_ifdown,
-		                                     rpc_data_policy)
+		                                     rpc_data_policy),
+		UBUS_METHOD_NOARG("device_list",     rpc_luci2_network_dev_list)
 	};
 
 	static struct ubus_object_type luci2_network_type =
