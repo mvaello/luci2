@@ -2205,7 +2205,7 @@ rpc_luci2_network_dev_list(struct ubus_context *ctx, struct ubus_object *obj,
 	struct stat s;
 	void *c, *t;
 	bool wireless, bridge, tuntap;
-	int type;
+	int type, flags;
 	DIR *d;
 	FILE *f;
 
@@ -2230,6 +2230,18 @@ rpc_luci2_network_dev_list(struct ubus_context *ctx, struct ubus_object *obj,
 
 		fclose(f);
 
+		snprintf(path, sizeof(path) - 1, "/sys/class/net/%s/flags", e->d_name);
+
+		if (stat(path, &s) || !S_ISREG(s.st_mode) || !(f = fopen(path, "r")))
+			continue;
+
+		flags = 0;
+		memset(path, 0, sizeof(path));
+
+		if (fread(path, 1, sizeof(path) - 1, f) > 0)
+			flags = strtoul(path, NULL, 16);
+
+		fclose(f);
 
 		snprintf(path, sizeof(path) - 1,
 		         "/sys/class/net/%s/wireless", e->d_name);
@@ -2255,6 +2267,7 @@ rpc_luci2_network_dev_list(struct ubus_context *ctx, struct ubus_object *obj,
 
 		blobmsg_add_string(&buf, "device", e->d_name);
 		blobmsg_add_u32(&buf, "type", type);
+		blobmsg_add_u8(&buf, "is_up", flags & 1);
 		blobmsg_add_u8(&buf, "is_bridge", bridge);
 		blobmsg_add_u8(&buf, "is_tuntap", tuntap);
 		blobmsg_add_u8(&buf, "is_wireless", wireless);
