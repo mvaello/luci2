@@ -41,6 +41,7 @@ define Package/luci2/install
 	$(CP) ./share/* $(1)/usr/share/rpcd/
 	$(INSTALL_DIR) $(1)/usr/lib/rpcd
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/rpcd/luci2.so $(1)/usr/lib/rpcd/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/rpcd/bwmon.so $(1)/usr/lib/rpcd/
 	$(INSTALL_DIR) $(1)/usr/libexec $(1)/www/cgi-bin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/io/luci2-io $(1)/usr/libexec/
 	$(LN) /usr/libexec/luci2-io $(1)/www/cgi-bin/luci-upload
