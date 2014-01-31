@@ -2205,6 +2205,41 @@ function LuCI2()
 				window.clearInterval(this._hearbeatInterval);
 				delete this._hearbeatInterval;
 			}
+		},
+
+
+		_acls: { },
+
+		_fetch_acls: _luci2.rpc.declare({
+			object: 'session',
+			method: 'access',
+			expect: { '': { } }
+		}),
+
+		_fetch_acls_cb: function(acls)
+		{
+			_luci2.session._acls = acls;
+		},
+
+		updateACLs: function()
+		{
+			return _luci2.session._fetch_acls()
+				.then(_luci2.session._fetch_acls_cb);
+		},
+
+		hasACL: function(scope, object, func)
+		{
+			var acls = _luci2.session._acls;
+
+			if (typeof(func) == 'undefined')
+				return (acls && acls[scope] && acls[scope][object]);
+
+			if (acls && acls[scope] && acls[scope][object])
+				for (var i = 0; i < acls[scope][object].length; i++)
+					if (acls[scope][object][i] == func)
+						return true;
+
+			return false;
 		}
 	};
 
