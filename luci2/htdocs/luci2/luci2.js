@@ -3684,6 +3684,18 @@ function LuCI2()
 			}
 		}),
 
+		_render_change_indicator: function()
+		{
+			return $('<ul />')
+				.addClass('nav navbar-nav navbar-right')
+				.append($('<li />')
+					.append($('<a />')
+						.attr('id', 'changes')
+						.attr('href', '#')
+						.append($('<span />')
+							.addClass('label label-info'))));
+		},
+
 		renderMainMenu: _luci2.rpc.declare({
 			object: 'luci2.ui',
 			method: 'menu',
@@ -3694,7 +3706,8 @@ function LuCI2()
 
 				$('#mainmenu')
 					.empty()
-					.append(_luci2.globals.mainMenu.render(0, 1));
+					.append(_luci2.globals.mainMenu.render(0, 1))
+					.append(_luci2.ui._render_change_indicator());
 			}
 		}),
 
