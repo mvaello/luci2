@@ -3763,6 +3763,23 @@ function LuCI2()
 			});
 		},
 
+		changeView: function()
+		{
+			var name = _luci2.getHash('view');
+			var node = _luci2.globals.defaultNode;
+
+			if (name && _luci2.globals.mainMenu)
+				node = _luci2.globals.mainMenu.getNode(name);
+
+			if (node)
+			{
+				_luci2.ui.loading(true);
+				_luci2.ui.renderView(node).then(function() {
+					_luci2.ui.loading(false);
+				});
+			}
+		},
+
 		updateHostname: function()
 		{
 			return _luci2.system.getBoardInfo().then(function(info) {
@@ -3854,13 +3871,19 @@ function LuCI2()
 			_luci2.ui.loading(true);
 
 			$.when(
+				_luci2.session.updateACLs(),
 				_luci2.ui.updateHostname(),
 				_luci2.ui.updateChanges(),
-				_luci2.ui.renderMainMenu()
+				_luci2.ui.renderMainMenu(),
+				_luci2.NetworkModel.init()
 			).then(function() {
 				_luci2.ui.renderView(_luci2.globals.defaultNode).then(function() {
 					_luci2.ui.loading(false);
-				})
+				});
+
+				$(window).on('hashchange', function() {
+					_luci2.ui.changeView();
+				});
 			});
 		},
 
@@ -4074,10 +4097,7 @@ function LuCI2()
 
 		_onclick: function(ev)
 		{
-			_luci2.ui.loading(true);
-			_luci2.ui.renderView(ev.data).then(function() {
-				_luci2.ui.loading(false);
-			});
+			_luci2.setHash('view', ev.data);
 
 			ev.preventDefault();
 			this.blur();
@@ -4130,7 +4150,7 @@ function LuCI2()
 				}
 				else
 				{
-					item.find('a').click(nodes[i], this._onclick);
+					item.find('a').click(nodes[i].view, this._onclick);
 				}
 			}
 
