@@ -5915,6 +5915,21 @@ function LuCI2()
 		}
 	});
 
+	this.cbi.ButtonValue = this.cbi.AbstractValue.extend({
+		widget: function(sid)
+		{
+			this.options.optional = true;
+
+			var btn = $('<button />')
+				.addClass('btn btn-default')
+				.attr('id', this.id(sid))
+				.attr('type', 'button')
+				.text(this.label('text'));
+
+			return this.validator(sid, btn);
+		}
+	});
+
 	this.cbi.NetworkList = this.cbi.AbstractValue.extend({
 		load: function(sid)
 		{
