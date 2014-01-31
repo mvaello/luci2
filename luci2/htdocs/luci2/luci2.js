@@ -3788,6 +3788,7 @@ function LuCI2()
 						switch (c[0])
 						{
 						case 'order':
+							log.push('uci reorder %s.<ins>%s=<strong>%s</strong></ins>'.format(config, c[1], c[2]));
 							break;
 
 						case 'remove':
