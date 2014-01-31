@@ -3268,13 +3268,13 @@ function LuCI2()
 			{
 				state.dialog.modal('hide');
 
-				return;
+				return state.dialog;
 			}
 
 			var cnt = state.dialog.children().children().children('div.modal-body');
 			var ftr = state.dialog.children().children().children('div.modal-footer');
 
-			ftr.empty();
+			ftr.empty().show();
 
 			if (options.style == 'confirm')
 			{
@@ -3295,10 +3295,21 @@ function LuCI2()
 					.attr('disabled', true));
 			}
 
+			if (options.wide)
+			{
+				state.dialog.addClass('wide');
+			}
+			else
+			{
+				state.dialog.removeClass('wide');
+			}
+
 			state.dialog.find('h4:first').text(title);
 			state.dialog.modal('show');
 
 			cnt.empty().append(content);
+
+			return state.dialog;
 		},
 
 		upload: function(title, content, options)
