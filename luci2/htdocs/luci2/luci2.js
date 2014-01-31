@@ -3707,9 +3707,11 @@ function LuCI2()
 
 		renderView: function()
 		{
-			var node = arguments[0];
-			var name = node.view.split(/\//).join('.');
-			var args = [ ];
+			var node  = arguments[0];
+			var name  = node.view.split(/\//).join('.');
+			var cname = _luci2.toClassName(name);
+			var views = _luci2.views || (_luci2.views = { });
+			var args  = [ ];
 
 			for (var i = 1; i < arguments.length; i++)
 				args.push(arguments[i]);
@@ -3718,16 +3720,12 @@ function LuCI2()
 				_luci2.globals.currentView.finish();
 
 			_luci2.ui.renderViewMenu();
-
-			if (!_luci2._views)
-				_luci2._views = { };
-
 			_luci2.setHash('view', node.view);
 
-			if (_luci2._views[name] instanceof _luci2.ui.view)
+			if (views[cname] instanceof _luci2.ui.view)
 			{
-				_luci2.globals.currentView = _luci2._views[name];
-				return _luci2._views[name].render.apply(_luci2._views[name], args);
+				_luci2.globals.currentView = views[cname];
+				return views[cname].render.apply(views[cname], args);
 			}
 
 			var url = _luci2.globals.resource + '/view/' + name + '.js';
@@ -3747,13 +3745,13 @@ function LuCI2()
 
 					var viewConstructor = eval(viewConstructorSource);
 
-					_luci2._views[name] = new viewConstructor({
+					views[cname] = new viewConstructor({
 						name: name,
 						acls: node.write || { }
 					});
 
-					_luci2.globals.currentView = _luci2._views[name];
-					return _luci2._views[name].render.apply(_luci2._views[name], args);
+					_luci2.globals.currentView = views[cname];
+					return views[cname].render.apply(views[cname], args);
 				}
 				catch(e) {
 					alert('Unable to instantiate view "%s": %s'.format(url, e));
