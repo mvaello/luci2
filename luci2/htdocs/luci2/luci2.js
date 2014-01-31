@@ -364,8 +364,10 @@ function LuCI2()
 			h += keys[i] + ':' + data[keys[i]];
 		}
 
-		if (h)
+		if (h.length)
 			location.hash = '#' + h;
+		else
+			location.hash = '';
 	};
 
 	this.getHash = function(key)
