@@ -388,6 +388,103 @@ function LuCI2()
 		return data;
 	};
 
+	this.toArray = function(x)
+	{
+		switch (typeof(x))
+		{
+		case 'number':
+		case 'boolean':
+			return [ x ];
+
+		case 'string':
+			var r = [ ];
+			var l = x.split(/\s+/);
+			for (var i = 0; i < l.length; i++)
+				if (l[i].length > 0)
+					r.push(l[i]);
+			return r;
+
+		case 'object':
+			if ($.isArray(x))
+			{
+				var r = [ ];
+				for (var i = 0; i < x.length; i++)
+					r.push(x[i]);
+				return r;
+			}
+			else if ($.isPlainObject(x))
+			{
+				var r = [ ];
+				for (var k in x)
+					if (x.hasOwnProperty(k))
+						r.push(k);
+				return r.sort();
+			}
+		}
+
+		return [ ];
+	};
+
+	this.toObject = function(x)
+	{
+		switch (typeof(x))
+		{
+		case 'number':
+		case 'boolean':
+			return { x: true };
+
+		case 'string':
+			var r = { };
+			var l = x.split(/\x+/);
+			for (var i = 0; i < l.length; i++)
+				if (l[i].length > 0)
+					r[l[i]] = true;
+			return r;
+
+		case 'object':
+			if ($.isArray(x))
+			{
+				var r = { };
+				for (var i = 0; i < x.length; i++)
+					r[x[i]] = true;
+				return r;
+			}
+			else if ($.isPlainObject(x))
+			{
+				return x;
+			}
+		}
+
+		return { };
+	};
+
+	this.filterArray = function(array, item)
+	{
+		if (!$.isArray(array))
+			return [ ];
+
+		for (var i = 0; i < array.length; i++)
+			if (array[i] === item)
+				array.splice(i--, 1);
+
+		return array;
+	};
+
+	this.toClassName = function(str, suffix)
+	{
+		var n = '';
+		var l = str.split(/[\/.]/);
+
+		for (var i = 0; i < l.length; i++)
+			if (l[i].length > 0)
+				n += l[i].charAt(0).toUpperCase() + l[i].substr(1).toLowerCase();
+
+		if (typeof(suffix) == 'string')
+			n += suffix;
+
+		return n;
+	};
+
 	this.globals = {
 		timeout:  15000,
 		resource: '/luci2',
