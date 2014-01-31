@@ -4966,6 +4966,7 @@ function LuCI2()
 			this.instance = { };
 			this.dependencies = [ ];
 			this.rdependency = { };
+			this.events = { };
 
 			this.options = _luci2.defaults(options, {
 				placeholder: '',
@@ -5019,6 +5020,11 @@ function LuCI2()
 			}
 
 			return i.top;
+		},
+
+		active: function(sid)
+		{
+			return (this.instance[sid] && !this.instance[sid].disabled);
 		},
 
 		ucipath: function(sid)
@@ -5160,14 +5166,30 @@ function LuCI2()
 			}
 
 			if (rv)
+			{
 				for (var field in d.self.rdependency)
 					d.self.rdependency[field].toggle(d.sid);
+
+				d.self.section.tabtoggle(d.sid);
+			}
 
 			return rv;
 		},
 
 		validator: function(sid, elem, multi)
 		{
+			var evdata = {
+				self:   this,
+				sid:    sid,
+				elem:   elem,
+				multi:  multi,
+				inst:   this.instance[sid],
+				opt:    this.options.optional
+			};
+
+			for (var evname in this.events)
+				elem.on(evname, evdata, this.events[evname]);
+
 			if (typeof(this.options.datatype) == 'undefined' && $.isEmptyObject(this.rdependency))
 				return elem;
 
@@ -5175,29 +5197,19 @@ function LuCI2()
 			if (typeof(this.options.datatype) == 'string')
 			{
 				try {
-					vstack = _luci2.cbi.validation.compile(this.options.datatype);
+					evdata.vstack = _luci2.cbi.validation.compile(this.options.datatype);
 				} catch(e) { };
 			}
 			else if (typeof(this.options.datatype) == 'function')
 			{
 				var vfunc = this.options.datatype;
-				vstack = [ function(elem) {
+				evdata.vstack = [ function(elem) {
 					var rv = vfunc(this, elem);
 					if (rv !== true)
 						validation.message = rv;
 					return (rv === true);
 				}, [ elem ] ];
 			}
-
-			var evdata = {
-				self:   this,
-				sid:    sid,
-				elem:   elem,
-				multi:  multi,
-				vstack: vstack,
-				inst:   this.instance[sid],
-				opt:    this.options.optional
-			};
 
 			if (elem.prop('tagName') == 'SELECT')
 			{
@@ -5303,7 +5315,7 @@ function LuCI2()
 							break;
 						}
 					}
-					else if (typeof(cmp) == 'string')
+					else if (typeof(cmp) == 'string' || typeof(cmp) == 'number')
 					{
 						if (val != cmp)
 						{
@@ -5348,6 +5360,12 @@ function LuCI2()
 			}
 
 			return false;
+		},
+
+		on: function(evname, evfunc)
+		{
+			this.events[evname] = evfunc;
+			return this;
 		}
 	});
 
@@ -6157,6 +6175,30 @@ function LuCI2()
 			return w;
 		},
 
+		tabtoggle: function(sid)
+		{
+			for (var i = 0; i < this.tabs.length; i++)
+			{
+				var tab = this.tabs[i];
+				var elem = $('#' + this.id('nodetab', sid, tab.id));
+				var empty = true;
+
+				for (var j = 0; j < tab.fields.length; j++)
+				{
+					if (tab.fields[j].active(sid))
+					{
+						empty = false;
+						break;
+					}
+				}
+
+				if (empty && elem.is(':visible'))
+					elem.fadeOut();
+				else if (!empty)
+					elem.fadeIn();
+			}
+		},
+
 		ucipackages: function(pkg)
 		{
 			for (var i = 0; i < this.tabs.length; i++)
@@ -6222,8 +6264,7 @@ function LuCI2()
 
 		validate: function()
 		{
-			this.error_count = 0;
-
+			var errors = 0;
 			var as = this.sections();
 
 			for (var i = 0; i < as.length; i++)
@@ -6231,19 +6272,19 @@ function LuCI2()
 				var invals = this.validate_section(as[i]['.name']);
 
 				if (invals > 0)
-					this.error_count += invals;
+					errors += invals;
 			}
 
 			var badge = $('#' + this.id('sectiontab')).children('span:first');
 
-			if (this.error_count > 0)
+			if (errors > 0)
 				badge.show()
-					.text(this.error_count)
-					.attr('title', _luci2.trp('1 Error', '%d Errors', this.error_count).format(this.error_count));
+					.text(errors)
+					.attr('title', _luci2.trp('1 Error', '%d Errors', errors).format(errors));
 			else
 				badge.hide();
 
-			return (this.error_count == 0);
+			return (errors == 0);
 		}
 	});
 
@@ -6254,7 +6295,6 @@ function LuCI2()
 			this.options  = options;
 			this.tabs     = [ ];
 			this.fields   = { };
-			this.error_count  = 0;
 			this.active_panel = 0;
 			this.active_tab   = { };
 		},
