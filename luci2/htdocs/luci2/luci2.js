@@ -505,43 +505,48 @@ function LuCI2()
 				data:        JSON.stringify(req),
 				dataType:    'json',
 				type:        'POST',
-				timeout:     _luci2.globals.timeout
-			}).then(cb);
+				timeout:     _luci2.globals.timeout,
+				_rpc_req:   req
+			}).then(cb, cb);
 		},
 
 		_list_cb: function(msg)
 		{
-			/* verify message frame */
-			if (typeof(msg) != 'object' || msg.jsonrpc != '2.0' || !msg.id)
-				throw 'Invalid JSON response';
+			var list = msg.result;
 
-			return msg.result;
+			/* verify message frame */
+			if (typeof(msg) != 'object' || msg.jsonrpc != '2.0' || !msg.id || !$.isArray(list))
+				list = [ ];
+
+			return $.Deferred().resolveWith(this, [ list ]);
 		},
 
 		_call_cb: function(msg)
 		{
 			var data = [ ];
 			var type = Object.prototype.toString;
+			var reqs = this._rpc_req;
 
-			if (!$.isArray(msg))
+			if (!$.isArray(reqs))
+			{
 				msg = [ msg ];
+				reqs = [ reqs ];
+			}
 
 			for (var i = 0; i < msg.length; i++)
 			{
-				/* verify message frame */
-				if (typeof(msg[i]) != 'object' || msg[i].jsonrpc != '2.0' || !msg[i].id)
-					throw 'Invalid JSON response';
-
 				/* fetch related request info */
-				var req = _luci2.rpc._requests[msg[i].id];
+				var req = _luci2.rpc._requests[reqs[i].id];
 				if (typeof(req) != 'object')
 					throw 'No related request for JSON response';
 
 				/* fetch response attribute and verify returned type */
 				var ret = undefined;
 
-				if ($.isArray(msg[i].result) && msg[i].result[0] == 0)
-					ret = (msg[i].result.length > 1) ? msg[i].result[1] : msg[i].result[0];
+				/* verify message frame */
+				if (typeof(msg[i]) == 'object' && msg[i].jsonrpc == '2.0')
+					if ($.isArray(msg[i].result) && msg[i].result[0] == 0)
+						ret = (msg[i].result.length > 1) ? msg[i].result[1] : msg[i].result[0];
 
 				if (req.expect)
 				{
@@ -572,10 +577,10 @@ function LuCI2()
 					data = ret;
 
 				/* delete request object */
-				delete _luci2.rpc._requests[msg[i].id];
+				delete _luci2.rpc._requests[reqs[i].id];
 			}
 
-			return data;
+			return $.Deferred().resolveWith(this, [ data ]);
 		},
 
 		list: function()
