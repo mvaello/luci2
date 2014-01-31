@@ -6853,6 +6853,16 @@ function LuCI2()
 		}
 	});
 
+	this.cbi.SingleSection = this.cbi.NamedSection.extend({
+		render: function()
+		{
+			this.instance = { };
+			this.instance[this.uci_type] = { tabs: [ ] };
+
+			return this._render_section_body(this.uci_type, 0);
+		}
+	});
+
 	this.cbi.DummySection = this.cbi.TypedSection.extend({
 		sections: function(cb)
 		{
