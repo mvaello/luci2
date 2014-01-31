@@ -7043,6 +7043,20 @@ function LuCI2()
 			return body;
 		},
 
+		_render_footer: function()
+		{
+			return $('<div />')
+				.addClass('panel panel-default panel-body text-right')
+				.append($('<div />')
+					.addClass('btn-group')
+					.append(_luci2.ui.button(_luci2.tr('Save & Apply'), 'primary')
+						.click({ self: this }, function(ev) {  }))
+					.append(_luci2.ui.button(_luci2.tr('Save'), 'default')
+						.click({ self: this }, function(ev) { ev.data.self.send(); }))
+					.append(_luci2.ui.button(_luci2.tr('Reset'), 'default')
+						.click({ self: this }, function(ev) { ev.data.self.insertInto(ev.data.self.target); })));
+		},
+
 		render: function()
 		{
 			var map = $('<form />');
@@ -7058,18 +7072,7 @@ function LuCI2()
 			map.append(this._render_body());
 
 			if (this.options.pageaction !== false)
-			{
-				map.append($('<div />')
-					.addClass('panel panel-default panel-body text-right')
-					.append($('<div />')
-						.addClass('btn-group')
-						.append(_luci2.ui.button(_luci2.tr('Save & Apply'), 'primary')
-							.click({ self: this }, function(ev) {  }))
-						.append(_luci2.ui.button(_luci2.tr('Save'), 'default')
-							.click({ self: this }, function(ev) { ev.data.self.send(); }))
-						.append(_luci2.ui.button(_luci2.tr('Reset'), 'default')
-							.click({ self: this }, function(ev) { ev.data.self.insertInto(ev.data.self.target); }))));
-			}
+				map.append(this._render_footer());
 
 			return map;
 		},
@@ -7225,6 +7228,57 @@ function LuCI2()
 				self.finish();
 				self.target.show();
 				self = null;
+				_luci2.ui.loading(false);
+			});
+		}
+	});
+
+	this.cbi.Modal = this.cbi.Map.extend({
+		_render_footer: function()
+		{
+			return $('<div />')
+				.addClass('btn-group')
+				.append(_luci2.ui.button(_luci2.tr('Save & Apply'), 'primary')
+					.click({ self: this }, function(ev) {  }))
+				.append(_luci2.ui.button(_luci2.tr('Save'), 'default')
+					.click({ self: this }, function(ev) { ev.data.self.send(); }))
+				.append(_luci2.ui.button(_luci2.tr('Cancel'), 'default')
+					.click({ self: this }, function(ev) { _luci2.ui.dialog(false); }));
+		},
+
+		render: function()
+		{
+			var modal = _luci2.ui.dialog(this.label('caption'), null, { wide: true });
+			var map = $('<form />');
+
+			var desc = this.label('description');
+			if (desc)
+				map.append($('<p />').text(desc));
+
+			map.append(this._render_body());
+
+			modal.find('.modal-body').append(map);
+			modal.find('.modal-footer').append(this._render_footer());
+
+			return modal;
+		},
+
+		redraw: function()
+		{
+			this.render();
+			this.finish();
+		},
+
+		show: function()
+		{
+			var self = this;
+
+			_luci2.ui.loading(true);
+
+			return self.load().then(function() {
+				self.render();
+				self.finish();
+
 				_luci2.ui.loading(false);
 			});
 		}
