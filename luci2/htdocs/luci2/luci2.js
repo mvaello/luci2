@@ -5933,49 +5933,14 @@ function LuCI2()
 	this.cbi.NetworkList = this.cbi.AbstractValue.extend({
 		load: function(sid)
 		{
-			var self = this;
-
-			if (!self.interfaces)
-			{
-				self.interfaces = [ ];
-				return _luci2.network.getNetworkStatus().then(function(ifaces) {
-					self.interfaces = ifaces;
-					self = null;
-				});
-			}
-
-			return undefined;
+			return _luci2.NetworkModel.init();
 		},
 
 		_device_icon: function(dev)
 		{
-			var type = 'ethernet';
-			var desc = _luci2.tr('Ethernet device');
-
-			if (dev.type == 'IP tunnel')
-			{
-				type = 'tunnel';
-				desc = _luci2.tr('Tunnel interface');
-			}
-			else if (dev['bridge-members'])
-			{
-				type = 'bridge';
-				desc = _luci2.tr('Bridge');
-			}
-			else if (dev.wireless)
-			{
-				type = 'wifi';
-				desc = _luci2.tr('Wireless Network');
-			}
-			else if (dev.device.indexOf('.') > 0)
-			{
-				type = 'vlan';
-				desc = _luci2.tr('VLAN interface');
-			}
-
 			return $('<img />')
-				.attr('src', _luci2.globals.resource + '/icons/' + type + (dev.up ? '' : '_disabled') + '.png')
-				.attr('title', '%s (%s)'.format(desc, dev.device));
+				.attr('src', dev.icon())
+				.attr('title', '%s (%s)'.format(dev.description(), dev.name() || '?'));
 		},
 
 		widget: function(sid)
@@ -5995,34 +5960,36 @@ function LuCI2()
 				for (var i = 0; i < value.length; i++)
 					check[value[i]] = true;
 
-			if (this.interfaces)
+			var interfaces = _luci2.NetworkModel.getInterfaces();
+
+			for (var i = 0; i < interfaces.length; i++)
 			{
-				for (var i = 0; i < this.interfaces.length; i++)
-				{
-					var iface = this.interfaces[i];
-					var badge = $('<span />')
-						.addClass('badge')
-						.text('%s: '.format(iface['interface']));
+				var iface = interfaces[i];
+				var badge = $('<span />')
+					.addClass('badge')
+					.text('%s: '.format(iface.name()));
 
-					if (iface.device && iface.device.subdevices)
-						for (var j = 0; j < iface.device.subdevices.length; j++)
-							badge.append(this._device_icon(iface.device.subdevices[j]));
-					else if (iface.device)
-						badge.append(this._device_icon(iface.device));
-					else
-						badge.append($('<em />').text(_luci2.tr('(No devices attached)')));
+				var dev = iface.getDevice();
+				var subdevs = iface.getSubdevices();
 
-					$('<li />')
-						.append($('<label />')
-							.addClass(itype + ' inline')
-							.append($('<input />')
-								.attr('name', itype + id)
-								.attr('type', itype)
-								.attr('value', iface['interface'])
-								.prop('checked', !!check[iface['interface']]))
-							.append(badge))
-						.appendTo(ul);
-				}
+				if (subdevs.length)
+					for (var j = 0; j < subdevs.length; j++)
+						badge.append(this._device_icon(subdevs[j]));
+				else if (dev)
+					badge.append(this._device_icon(dev));
+				else
+					badge.append($('<em />').text(_luci2.tr('(No devices attached)')));
+
+				$('<li />')
+					.append($('<label />')
+						.addClass(itype + ' inline')
+						.append($('<input />')
+							.attr('name', itype + id)
+							.attr('type', itype)
+							.attr('value', iface.name())
+							.prop('checked', !!check[iface.name()]))
+						.append(badge))
+					.appendTo(ul);
 			}
 
 			if (!this.options.multiple)
@@ -6034,7 +6001,7 @@ function LuCI2()
 							.attr('name', itype + id)
 							.attr('type', itype)
 							.attr('value', '')
-							.prop('checked', !value))
+							.prop('checked', $.isEmptyObject(check)))
 						.append(_luci2.tr('unspecified')))
 					.appendTo(ul);
 			}
