@@ -669,6 +669,481 @@ function LuCI2()
 		}
 	};
 
+	this.UCIContext = Class.extend({
+
+		init: function()
+		{
+			this.state = {
+				newid:   0,
+				values:  { },
+				creates: { },
+				changes: { },
+				deletes: { },
+				reorder: { }
+			};
+		},
+
+		_load: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'get',
+			params: [ 'config' ],
+			expect: { values: { } }
+		}),
+
+		_order: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'order',
+			params: [ 'config', 'sections' ]
+		}),
+
+		_add: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'add',
+			params: [ 'config', 'type', 'name', 'values' ],
+			expect: { section: '' }
+		}),
+
+		_set: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'set',
+			params: [ 'config', 'section', 'values' ]
+		}),
+
+		_delete: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'delete',
+			params: [ 'config', 'section', 'options' ]
+		}),
+
+		load: function(packages)
+		{
+			var self = this;
+			var seen = { };
+			var pkgs = [ ];
+
+			if (!$.isArray(packages))
+				packages = [ packages ];
+
+			_luci2.rpc.batch();
+
+			for (var i = 0; i < packages.length; i++)
+				if (!seen[packages[i]])
+				{
+					pkgs.push(packages[i]);
+					seen[packages[i]] = true;
+					self._load(packages[i]);
+				}
+
+			return _luci2.rpc.flush().then(function(responses) {
+				for (var i = 0; i < responses.length; i++)
+					self.state.values[pkgs[i]] = responses[i];
+
+				return pkgs;
+			});
+		},
+
+		unload: function(packages)
+		{
+			if (!$.isArray(packages))
+				packages = [ packages ];
+
+			for (var i = 0; i < packages.length; i++)
+			{
+				delete this.state.values[packages[i]];
+				delete this.state.creates[packages[i]];
+				delete this.state.changes[packages[i]];
+				delete this.state.deletes[packages[i]];
+			}
+		},
+
+		add: function(conf, type, name)
+		{
+			var c = this.state.creates;
+			var s = '.new.%d'.format(this.state.newid++);
+
+			if (!c[conf])
+				c[conf] = { };
+
+			c[conf][s] = {
+				'.type':      type,
+				'.name':      s,
+				'.create':    name,
+				'.anonymous': !name,
+				'.index':     1000 + this.state.newid
+			};
+
+			return s;
+		},
+
+		remove: function(conf, sid)
+		{
+			var n = this.state.creates;
+			var c = this.state.changes;
+			var d = this.state.deletes;
+
+			/* requested deletion of a just created section */
+			if (sid.indexOf('.new.') == 0)
+			{
+				if (n[conf])
+					delete n[conf][sid];
+			}
+			else
+			{
+				if (c[conf])
+					delete c[conf][sid];
+
+				if (!d[conf])
+					d[conf] = { };
+
+				d[conf][sid] = true;
+			}
+		},
+
+		sections: function(conf, type, cb)
+		{
+			var sa = [ ];
+			var v = this.state.values[conf];
+			var n = this.state.creates[conf];
+			var c = this.state.changes[conf];
+			var d = this.state.deletes[conf];
+
+			if (!v)
+				return sa;
+
+			for (var s in v)
+				if (!d || d[s] !== true)
+					if (!type || v[s]['.type'] == type)
+						sa.push($.extend({ }, v[s], c ? c[s] : undefined));
+
+			if (n)
+				for (var s in n)
+					if (!type || n[s]['.type'] == type)
+						sa.push(n[s]);
+
+			sa.sort(function(a, b) {
+				return a['.index'] - b['.index'];
+			});
+
+			for (var i = 0; i < sa.length; i++)
+				sa[i]['.index'] = i;
+
+			if (typeof(cb) == 'function')
+				for (var i = 0; i < sa.length; i++)
+					cb.call(this, sa[i], sa[i]['.name']);
+
+			return sa;
+		},
+
+		get: function(conf, sid, opt)
+		{
+			var v = this.state.values;
+			var n = this.state.creates;
+			var c = this.state.changes;
+			var d = this.state.deletes;
+
+			if (typeof(sid) == 'undefined')
+				return undefined;
+
+			/* requested option in a just created section */
+			if (sid.indexOf('.new.') == 0)
+			{
+				if (!n[conf])
+					return undefined;
+
+				if (typeof(opt) == 'undefined')
+					return n[conf][sid];
+
+				return n[conf][sid][opt];
+			}
+
+			/* requested an option value */
+			if (typeof(opt) != 'undefined')
+			{
+				/* check whether option was deleted */
+				if (d[conf] && d[conf][sid])
+				{
+					if (d[conf][sid] === true)
+						return undefined;
+
+					for (var i = 0; i < d[conf][sid].length; i++)
+						if (d[conf][sid][i] == opt)
+							return undefined;
+				}
+
+				/* check whether option was changed */
+				if (c[conf] && c[conf][sid] && typeof(c[conf][sid][opt]) != 'undefined')
+					return c[conf][sid][opt];
+
+				/* return base value */
+				if (v[conf] && v[conf][sid])
+					return v[conf][sid][opt];
+
+				return undefined;
+			}
+
+			/* requested an entire section */
+			if (v[conf])
+				return v[conf][sid];
+
+			return undefined;
+		},
+
+		set: function(conf, sid, opt, val)
+		{
+			var n = this.state.creates;
+			var c = this.state.changes;
+			var d = this.state.deletes;
+
+			if (typeof(sid) == 'undefined' ||
+			    typeof(opt) == 'undefined' ||
+			    opt.charAt(0) == '.')
+				return;
+
+			if (sid.indexOf('.new.') == 0)
+			{
+				if (n[conf] && n[conf][sid])
+				{
+					if (typeof(val) != 'undefined')
+						n[conf][sid][opt] = val;
+					else
+						delete n[conf][sid][opt];
+				}
+			}
+			else if (typeof(val) != 'undefined')
+			{
+				/* do not set within deleted section */
+				if (d[conf] && d[conf][sid] === true)
+					return;
+
+				if (!c[conf])
+					c[conf] = { };
+
+				if (!c[conf][sid])
+					c[conf][sid] = { };
+
+				/* undelete option */
+				if (d[conf] && d[conf][sid])
+					d[conf][sid] = _luci2.filterArray(d[conf][sid], opt);
+
+				c[conf][sid][opt] = val;
+			}
+			else
+			{
+				if (!d[conf])
+					d[conf] = { };
+
+				if (!d[conf][sid])
+					d[conf][sid] = [ ];
+
+				if (d[conf][sid] !== true)
+					d[conf][sid].push(opt);
+			}
+		},
+
+		unset: function(conf, sid, opt)
+		{
+			return this.set(conf, sid, opt, undefined);
+		},
+
+		_reload: function()
+		{
+			var pkgs = [ ];
+
+			for (var pkg in this.state.values)
+				pkgs.push(pkg);
+
+			this.init();
+
+			return this.load(pkgs);
+		},
+
+		_reorder: function()
+		{
+			var v = this.state.values;
+			var n = this.state.creates;
+			var r = this.state.reorder;
+
+			if ($.isEmptyObject(r))
+				return _luci2.deferrable();
+
+			_luci2.rpc.batch();
+
+			/*
+			 gather all created and existing sections, sort them according
+			 to their index value and issue an uci order call
+			*/
+			for (var c in r)
+			{
+				var o = [ ];
+
+				if (n && n[c])
+					for (var s in n[c])
+						o.push(n[c][s]);
+
+				for (var s in v[c])
+					o.push(v[c][s]);
+
+				if (o.length > 0)
+				{
+					o.sort(function(a, b) {
+						return (a['.index'] - b['.index']);
+					});
+
+					var sids = [ ];
+
+					for (var i = 0; i < o.length; i++)
+						sids.push(o[i]['.name']);
+
+					this._order(c, sids);
+				}
+			}
+
+			this.state.reorder = { };
+			return _luci2.rpc.flush();
+		},
+
+		swap: function(conf, sid1, sid2)
+		{
+			var s1 = this.get(conf, sid1);
+			var s2 = this.get(conf, sid2);
+			var n1 = s1 ? s1['.index'] : NaN;
+			var n2 = s2 ? s2['.index'] : NaN;
+
+			if (isNaN(n1) || isNaN(n2))
+				return false;
+
+			s1['.index'] = n2;
+			s2['.index'] = n1;
+
+			this.state.reorder[conf] = true;
+
+			return true;
+		},
+
+		save: function()
+		{
+			_luci2.rpc.batch();
+
+			var self = this;
+			var snew = [ ];
+
+			if (self.state.creates)
+				for (var c in self.state.creates)
+					for (var s in self.state.creates[c])
+					{
+						var r = {
+							config: c,
+							values: { }
+						};
+
+						for (var k in self.state.creates[c][s])
+						{
+							if (k == '.type')
+								r.type = self.state.creates[c][s][k];
+							else if (k == '.create')
+								r.name = self.state.creates[c][s][k];
+							else if (k.charAt(0) != '.')
+								r.values[k] = self.state.creates[c][s][k];
+						}
+
+						snew.push(self.state.creates[c][s]);
+
+						self._add(r.config, r.type, r.name, r.values);
+					}
+
+			if (self.state.changes)
+				for (var c in self.state.changes)
+					for (var s in self.state.changes[c])
+						self._set(c, s, self.state.changes[c][s]);
+
+			if (self.state.deletes)
+				for (var c in self.state.deletes)
+					for (var s in self.state.deletes[c])
+					{
+						var o = self.state.deletes[c][s];
+						self._delete(c, s, (o === true) ? undefined : o);
+					}
+
+			return _luci2.rpc.flush().then(function(responses) {
+				/*
+				 array "snew" holds references to the created uci sections,
+				 use it to assign the returned names of the new sections
+				*/
+				for (var i = 0; i < snew.length; i++)
+					snew[i]['.name'] = responses[i];
+
+				return self._reorder();
+			});
+		},
+
+		_apply: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'apply',
+			params: [ 'timeout', 'rollback' ]
+		}),
+
+		_confirm: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'confirm'
+		}),
+
+		apply: function(timeout)
+		{
+			var self = this;
+			var date = new Date();
+			var deferred = $.Deferred();
+
+			if (typeof(timeout) != 'number' || timeout < 1)
+				timeout = 10;
+
+			self._apply(timeout, true).then(function(rv) {
+				if (rv != 0)
+				{
+					deferred.rejectWith(self, [ rv ]);
+					return;
+				}
+
+				var try_deadline = date.getTime() + 1000 * timeout;
+				var try_confirm = function()
+				{
+					return self._confirm().then(function(rv) {
+						if (rv != 0)
+						{
+							if (date.getTime() < try_deadline)
+								window.setTimeout(try_confirm, 250);
+							else
+								deferred.rejectWith(self, [ rv ]);
+
+							return;
+						}
+
+						deferred.resolveWith(self, [ rv ]);
+					});
+				};
+
+				window.setTimeout(try_confirm, 1000);
+			});
+
+			return deferred;
+		},
+
+		changes: _luci2.rpc.declare({
+			object: 'uci',
+			method: 'changes',
+			expect: { changes: { } }
+		}),
+
+		readable: function(conf)
+		{
+			return _luci2.session.hasACL('uci', conf, 'read');
+		},
+
+		writable: function(conf)
+		{
+			return _luci2.session.hasACL('uci', conf, 'write');
+		}
+	});
+
 	this.uci = {
 
 		writable: function()
