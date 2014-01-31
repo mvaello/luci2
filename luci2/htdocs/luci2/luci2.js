@@ -3860,20 +3860,23 @@ function LuCI2()
 
 				if (n > 0)
 					$('#changes')
-						.empty()
-						.show()
-						.append($('<a />')
-							.attr('href', '#')
-							.addClass('label')
-							.addClass('notice')
-							.text(_luci2.trcp('Pending configuration changes', '1 change', '%d changes', n).format(n))
-							.click(function(ev) {
-								_luci2.ui.dialog(_luci2.tr('Staged configuration changes'), html, { style: 'close' });
-								ev.preventDefault();
-							}));
+						.click(function(ev) {
+							_luci2.ui.dialog(_luci2.tr('Staged configuration changes'), html, {
+								style: 'confirm',
+								confirm: function() {
+									_luci2.uci.apply().then(
+										function(code) { alert('Success with code ' + code); },
+										function(code) { alert('Error with code ' + code); }
+									);
+								}
+							});
+							ev.preventDefault();
+						})
+						.children('span')
+							.show()
+							.text(_luci2.trcp('Pending configuration changes', '1 change', '%d changes', n).format(n));
 				else
-					$('#changes')
-						.hide();
+					$('#changes').children('span').hide();
 			});
 		},
 
