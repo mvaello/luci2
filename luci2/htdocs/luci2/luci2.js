@@ -3216,6 +3216,7 @@ function LuCI2()
 
 			var state = _luci2.ui._loading || (_luci2.ui._loading = {
 				modal: $('<div />')
+					.css('z-index', 2000)
 					.addClass('modal fade')
 					.append($('<div />')
 						.addClass('modal-dialog')
