@@ -1354,6 +1354,1419 @@ function LuCI2()
 		}
 	};
 
+	this.NetworkModel = {
+		_device_blacklist: [
+			/^gre[0-9]+$/,
+			/^gretap[0-9]+$/,
+			/^ifb[0-9]+$/,
+			/^ip6tnl[0-9]+$/,
+			/^sit[0-9]+$/,
+			/^wlan[0-9]+\.sta[0-9]+$/
+		],
+
+		_cache_functions: [
+			'protolist', 0, _luci2.rpc.declare({
+				object: 'network',
+				method: 'get_proto_handlers',
+				expect: { '': { } }
+			}),
+			'ifstate', 1, _luci2.rpc.declare({
+				object: 'network.interface',
+				method: 'dump',
+				expect: { 'interface': [ ] }
+			}),
+			'devstate', 2, _luci2.rpc.declare({
+				object: 'network.device',
+				method: 'status',
+				expect: { '': { } }
+			}),
+			'wifistate', 0, _luci2.rpc.declare({
+				object: 'network.wireless',
+				method: 'status',
+				expect: { '': { } }
+			}),
+			'bwstate', 2, _luci2.rpc.declare({
+				object: 'luci2.network.bwmon',
+				method: 'statistics',
+				expect: { 'statistics': { } }
+			}),
+			'devlist', 2, _luci2.rpc.declare({
+				object: 'luci2.network',
+				method: 'device_list',
+				expect: { 'devices': [ ] }
+			}),
+			'swlist', 0, _luci2.rpc.declare({
+				object: 'luci2.network',
+				method: 'switch_list',
+				expect: { 'switches': [ ] }
+			})
+		],
+
+		_fetch_protocol: function(proto)
+		{
+			var url = _luci2.globals.resource + '/proto/' + proto + '.js';
+			var self = _luci2.NetworkModel;
+
+			var def = $.Deferred();
+
+			$.ajax(url, {
+				method: 'GET',
+				cache: true,
+				dataType: 'text'
+			}).then(function(data) {
+				try {
+					var protoConstructorSource = (
+						'(function(L, $) { ' +
+							'return %s' +
+						'})(_luci2, $);\n\n' +
+						'//@ sourceURL=%s'
+					).format(data, url);
+
+					var protoClass = eval(protoConstructorSource);
+
+					self._protos[proto] = new protoClass();
+				}
+				catch(e) {
+					alert('Unable to instantiate proto "%s": %s'.format(url, e));
+				};
+
+				def.resolve();
+			}).fail(function() {
+				def.resolve();
+			});
+
+			return def;
+		},
+
+		_fetch_protocols: function()
+		{
+			var self = _luci2.NetworkModel;
+			var deferreds = [ ];
+
+			for (var proto in self._cache.protolist)
+				deferreds.push(self._fetch_protocol(proto));
+
+			return $.when.apply($, deferreds);
+		},
+
+		_fetch_swstate: _luci2.rpc.declare({
+			object: 'luci2.network',
+			method: 'switch_info',
+			params: [ 'switch' ],
+			expect: { 'info': { } }
+		}),
+
+		_fetch_swstate_cb: function(responses) {
+			var self = _luci2.NetworkModel;
+			var swlist = self._cache.swlist;
+			var swstate = self._cache.swstate = { };
+
+			for (var i = 0; i < responses.length; i++)
+				swstate[swlist[i]] = responses[i];
+		},
+
+		_fetch_cache_cb: function(level)
+		{
+			var self = _luci2.NetworkModel;
+			var name = '_fetch_cache_cb_' + level;
+
+			return self[name] || (
+				self[name] = function(responses)
+				{
+					for (var i = 0; i < self._cache_functions.length; i += 3)
+						if (!level || self._cache_functions[i + 1] == level)
+							self._cache[self._cache_functions[i]] = responses.shift();
+
+					if (!level)
+					{
+						_luci2.rpc.batch();
+
+						for (var i = 0; i < self._cache.swlist.length; i++)
+							self._fetch_swstate(self._cache.swlist[i]);
+
+						return _luci2.rpc.flush().then(self._fetch_swstate_cb);
+					}
+
+					return _luci2.deferrable();
+				}
+			);
+		},
+
+		_fetch_cache: function(level)
+		{
+			var self = _luci2.NetworkModel;
+
+			return _luci2.uci.load(['network', 'wireless']).then(function() {
+				_luci2.rpc.batch();
+
+				for (var i = 0; i < self._cache_functions.length; i += 3)
+					if (!level || self._cache_functions[i + 1] == level)
+						self._cache_functions[i + 2]();
+
+				return _luci2.rpc.flush().then(self._fetch_cache_cb(level || 0));
+			});
+		},
+
+		_get: function(pkg, sid, key)
+		{
+			return _luci2.uci.get(pkg, sid, key);
+		},
+
+		_set: function(pkg, sid, key, val)
+		{
+			return _luci2.uci.set(pkg, sid, key, val);
+		},
+
+		_is_blacklisted: function(dev)
+		{
+			for (var i = 0; i < this._device_blacklist.length; i++)
+				if (dev.match(this._device_blacklist[i]))
+					return true;
+
+			return false;
+		},
+
+		_sort_devices: function(a, b)
+		{
+			if (a.options.kind < b.options.kind)
+				return -1;
+			else if (a.options.kind > b.options.kind)
+				return 1;
+
+			if (a.options.name < b.options.name)
+				return -1;
+			else if (a.options.name > b.options.name)
+				return 1;
+
+			return 0;
+		},
+
+		_get_dev: function(ifname)
+		{
+			var alias = (ifname.charAt(0) == '@');
+			return this._devs[ifname] || (
+				this._devs[ifname] = {
+					ifname:  ifname,
+					kind:    alias ? 'alias' : 'ethernet',
+					type:    alias ? 0 : 1,
+					up:      false,
+					changed: { }
+				}
+			);
+		},
+
+		_get_iface: function(name)
+		{
+			return this._ifaces[name] || (
+				this._ifaces[name] = {
+					name:    name,
+					proto:   this._protos.none,
+					changed: { }
+				}
+			);
+		},
+
+		_parse_devices: function()
+		{
+			var self = _luci2.NetworkModel;
+			var wificount = { };
+
+			for (var ifname in self._cache.devstate)
+			{
+				if (self._is_blacklisted(ifname))
+					continue;
+
+				var dev = self._cache.devstate[ifname];
+				var entry = self._get_dev(ifname);
+
+				entry.up = dev.up;
+
+				switch (dev.type)
+				{
+				case 'IP tunnel':
+					entry.kind = 'tunnel';
+					break;
+
+				case 'Bridge':
+					entry.kind = 'bridge';
+					//entry.ports = dev['bridge-members'].sort();
+					break;
+				}
+			}
+
+			for (var i = 0; i < self._cache.devlist.length; i++)
+			{
+				var dev = self._cache.devlist[i];
+
+				if (self._is_blacklisted(dev.device))
+					continue;
+
+				var entry = self._get_dev(dev.device);
+
+				entry.up   = dev.is_up;
+				entry.type = dev.type;
+
+				switch (dev.type)
+				{
+				case 1: /* Ethernet */
+					if (dev.is_bridge)
+						entry.kind = 'bridge';
+					else if (dev.is_tuntap)
+						entry.kind = 'tunnel';
+					else if (dev.is_wireless)
+						entry.kind = 'wifi';
+					break;
+
+				case 512: /* PPP */
+				case 768: /* IP-IP Tunnel */
+				case 769: /* IP6-IP6 Tunnel */
+				case 776: /* IPv6-in-IPv4 */
+				case 778: /* GRE over IP */
+					entry.kind = 'tunnel';
+					break;
+				}
+			}
+
+			var net = _luci2.uci.sections('network');
+			for (var i = 0; i < net.length; i++)
+			{
+				var s = net[i];
+				var sid = s['.name'];
+
+				if (s['.type'] == 'device' && s.name)
+				{
+					var entry = self._get_dev(s.name);
+
+					switch (s.type)
+					{
+					case 'macvlan':
+					case 'tunnel':
+						entry.kind = 'tunnel';
+						break;
+					}
+
+					entry.sid = sid;
+				}
+				else if (s['.type'] == 'interface' && !s['.anonymous'] && s.ifname)
+				{
+					var ifnames = _luci2.toArray(s.ifname);
+
+					for (var j = 0; j < ifnames.length; j++)
+						self._get_dev(ifnames[j]);
+
+					if (s['.name'] != 'loopback')
+					{
+						var entry = self._get_dev('@%s'.format(s['.name']));
+
+						entry.type = 0;
+						entry.kind = 'alias';
+						entry.sid  = sid;
+					}
+				}
+				else if (s['.type'] == 'switch_vlan' && s.device)
+				{
+					var sw = self._cache.swstate[s.device];
+					var vid = parseInt(s.vid || s.vlan);
+					var ports = _luci2.toArray(s.ports);
+
+					if (!sw || !ports.length || isNaN(vid))
+						continue;
+
+					var ifname = undefined;
+
+					for (var j = 0; j < ports.length; j++)
+					{
+						var port = parseInt(ports[j]);
+						var tag = (ports[j].replace(/[^tu]/g, '') == 't');
+
+						if (port == sw.cpu_port)
+						{
+							// XXX: need a way to map switch to netdev
+							if (tag)
+								ifname = 'eth0.%d'.format(vid);
+							else
+								ifname = 'eth0';
+
+							break;
+						}
+					}
+
+					if (!ifname)
+						continue;
+
+					var entry = self._get_dev(ifname);
+
+					entry.kind = 'vlan';
+					entry.sid  = sid;
+					entry.vsw  = sw;
+					entry.vid  = vid;
+				}
+			}
+
+			var wifi = _luci2.uci.sections('wireless');
+			for (var i = 0; i < wifi.length; i++)
+			{
+				var s = wifi[i];
+				var sid = s['.name'];
+
+				if (s['.type'] == 'wifi-iface' && s.device)
+				{
+					var r = parseInt(s.device.replace(/^[^0-9]+/, ''));
+					var n = wificount[s.device] = (wificount[s.device] || 0) + 1;
+					var id = 'radio%d.network%d'.format(r, n);
+					var ifname = id;
+
+					if (self._cache.wifistate[s.device])
+					{
+						var ifcs = self._cache.wifistate[s.device].interfaces;
+						for (var ifc in ifcs)
+						{
+							if (ifcs[ifc].section == sid)
+							{
+								ifname = ifcs[ifc].ifname;
+								break;
+							}
+						}
+					}
+
+					var entry = self._get_dev(ifname);
+
+					entry.kind   = 'wifi';
+					entry.sid    = sid;
+					entry.wid    = id;
+					entry.wdev   = s.device;
+					entry.wmode  = s.mode;
+					entry.wssid  = s.ssid;
+					entry.wbssid = s.bssid;
+				}
+			}
+
+			for (var i = 0; i < net.length; i++)
+			{
+				var s = net[i];
+				var sid = s['.name'];
+
+				if (s['.type'] == 'interface' && !s['.anonymous'] && s.type == 'bridge')
+				{
+					var ifnames = _luci2.toArray(s.ifname);
+
+					for (var ifname in self._devs)
+					{
+						var dev = self._devs[ifname];
+
+						if (dev.kind != 'wifi')
+							continue;
+
+						var wnets = _luci2.toArray(_luci2.uci.get('wireless', dev.sid, 'network'));
+						if ($.inArray(sid, wnets) > -1)
+							ifnames.push(ifname);
+					}
+
+					entry = self._get_dev('br-%s'.format(s['.name']));
+					entry.type  = 1;
+					entry.kind  = 'bridge';
+					entry.sid   = sid;
+					entry.ports = ifnames.sort();
+				}
+			}
+		},
+
+		_parse_interfaces: function()
+		{
+			var self = _luci2.NetworkModel;
+			var net = _luci2.uci.sections('network');
+
+			for (var i = 0; i < net.length; i++)
+			{
+				var s = net[i];
+				var sid = s['.name'];
+
+				if (s['.type'] == 'interface' && !s['.anonymous'] && s.proto)
+				{
+					var entry = self._get_iface(s['.name']);
+					var proto = self._protos[s.proto] || self._protos.none;
+
+					var l3dev = undefined;
+					var l2dev = undefined;
+
+					var ifnames = _luci2.toArray(s.ifname);
+
+					for (var ifname in self._devs)
+					{
+						var dev = self._devs[ifname];
+
+						if (dev.kind != 'wifi')
+							continue;
+
+						var wnets = _luci2.toArray(_luci2.uci.get('wireless', dev.sid, 'network'));
+						if ($.inArray(entry.name, wnets) > -1)
+							ifnames.push(ifname);
+					}
+
+					if (proto.virtual)
+						l3dev = '%s-%s'.format(s.proto, entry.name);
+					else if (s.type == 'bridge')
+						l3dev = 'br-%s'.format(entry.name);
+					else
+						l3dev = ifnames[0];
+
+					if (!proto.virtual && s.type == 'bridge')
+						l2dev = 'br-%s'.format(entry.name);
+					else if (!proto.virtual)
+						l2dev = ifnames[0];
+
+					entry.proto = proto;
+					entry.sid   = sid;
+					entry.l3dev = l3dev;
+					entry.l2dev = l2dev;
+				}
+			}
+
+			for (var i = 0; i < self._cache.ifstate.length; i++)
+			{
+				var iface = self._cache.ifstate[i];
+				var entry = self._get_iface(iface['interface']);
+				var proto = self._protos[iface.proto] || self._protos.none;
+
+				/* this is a virtual interface, either deleted from config but
+				   not applied yet or set up from external tools (6rd) */
+				if (!entry.sid)
+				{
+					entry.proto = proto;
+					entry.l2dev = iface.device;
+					entry.l3dev = iface.l3_device;
+				}
+			}
+		},
+
+		init: function()
+		{
+			var self = this;
+
+			if (self._cache)
+				return _luci2.deferrable();
+
+			self._cache  = { };
+			self._devs   = { };
+			self._ifaces = { };
+			self._protos = { };
+
+			return self._fetch_cache()
+				.then(self._fetch_protocols)
+				.then(self._parse_devices)
+				.then(self._parse_interfaces);
+		},
+
+		update: function()
+		{
+			delete this._cache;
+			return this.init();
+		},
+
+		refreshInterfaceStatus: function()
+		{
+			return this._fetch_cache(1).then(this._parse_interfaces);
+		},
+
+		refreshDeviceStatus: function()
+		{
+			return this._fetch_cache(2).then(this._parse_devices);
+		},
+
+		refreshStatus: function()
+		{
+			return this._fetch_cache(1)
+				.then(this._fetch_cache(2))
+				.then(this._parse_devices)
+				.then(this._parse_interfaces);
+		},
+
+		getDevices: function()
+		{
+			var devs = [ ];
+
+			for (var ifname in this._devs)
+				if (ifname != 'lo')
+					devs.push(new _luci2.NetworkModel.Device(this._devs[ifname]));
+
+			return devs.sort(this._sort_devices);
+		},
+
+		getDeviceByInterface: function(iface)
+		{
+			if (iface instanceof _luci2.NetworkModel.Interface)
+				iface = iface.name();
+
+			if (this._ifaces[iface])
+				return this.getDevice(this._ifaces[iface].l3dev) ||
+				       this.getDevice(this._ifaces[iface].l2dev);
+
+			return undefined;
+		},
+
+		getDevice: function(ifname)
+		{
+			if (this._devs[ifname])
+				return new _luci2.NetworkModel.Device(this._devs[ifname]);
+
+			return undefined;
+		},
+
+		createDevice: function(name)
+		{
+			return new _luci2.NetworkModel.Device(this._get_dev(name));
+		},
+
+		getInterfaces: function()
+		{
+			var ifaces = [ ];
+
+			for (var name in this._ifaces)
+				if (name != 'loopback')
+					ifaces.push(this.getInterface(name));
+
+			ifaces.sort(function(a, b) {
+				if (a.name() < b.name())
+					return -1;
+				else if (a.name() > b.name())
+					return 1;
+				else
+					return 0;
+			});
+
+			return ifaces;
+		},
+
+		getInterfacesByDevice: function(dev)
+		{
+			var ifaces = [ ];
+
+			if (dev instanceof _luci2.NetworkModel.Device)
+				dev = dev.name();
+
+			for (var name in this._ifaces)
+			{
+				var iface = this._ifaces[name];
+				if (iface.l2dev == dev || iface.l3dev == dev)
+					ifaces.push(this.getInterface(name));
+			}
+
+			ifaces.sort(function(a, b) {
+				if (a.name() < b.name())
+					return -1;
+				else if (a.name() > b.name())
+					return 1;
+				else
+					return 0;
+			});
+
+			return ifaces;
+		},
+
+		getInterface: function(iface)
+		{
+			if (this._ifaces[iface])
+				return new _luci2.NetworkModel.Interface(this._ifaces[iface]);
+
+			return undefined;
+		},
+
+		getProtocols: function()
+		{
+			var rv = [ ];
+
+			for (var proto in this._protos)
+			{
+				var pr = this._protos[proto];
+
+				rv.push({
+					name:        proto,
+					description: pr.description,
+					virtual:     pr.virtual,
+					tunnel:      pr.tunnel
+				});
+			}
+
+			return rv.sort(function(a, b) {
+				if (a.name < b.name)
+					return -1;
+				else if (a.name > b.name)
+					return 1;
+				else
+					return 0;
+			});
+		},
+
+		_find_wan: function(ipaddr)
+		{
+			for (var i = 0; i < this._cache.ifstate.length; i++)
+			{
+				var ifstate = this._cache.ifstate[i];
+
+				if (!ifstate.route)
+					continue;
+
+				for (var j = 0; j < ifstate.route.length; j++)
+					if (ifstate.route[j].mask == 0 &&
+					    ifstate.route[j].target == ipaddr &&
+					    typeof(ifstate.route[j].table) == 'undefined')
+					{
+						return this.getInterface(ifstate['interface']);
+					}
+			}
+
+			return undefined;
+		},
+
+		findWAN: function()
+		{
+			return this._find_wan('0.0.0.0');
+		},
+
+		findWAN6: function()
+		{
+			return this._find_wan('::');
+		},
+
+		resolveAlias: function(ifname)
+		{
+			if (ifname instanceof _luci2.NetworkModel.Device)
+				ifname = ifname.name();
+
+			var dev = this._devs[ifname];
+			var seen = { };
+
+			while (dev && dev.kind == 'alias')
+			{
+				// loop
+				if (seen[dev.ifname])
+					return undefined;
+
+				var ifc = this._ifaces[dev.sid];
+
+				seen[dev.ifname] = true;
+				dev = ifc ? this._devs[ifc.l3dev] : undefined;
+			}
+
+			return dev ? this.getDevice(dev.ifname) : undefined;
+		}
+	};
+
+	this.NetworkModel.Device = Class.extend({
+		_wifi_modes: {
+			ap: _luci2.tr('Master'),
+			sta: _luci2.tr('Client'),
+			adhoc: _luci2.tr('Ad-Hoc'),
+			monitor: _luci2.tr('Monitor'),
+			wds: _luci2.tr('Static WDS')
+		},
+
+		_status: function(key)
+		{
+			var s = _luci2.NetworkModel._cache.devstate[this.options.ifname];
+
+			if (s)
+				return key ? s[key] : s;
+
+			return undefined;
+		},
+
+		get: function(key)
+		{
+			var sid = this.options.sid;
+			var pkg = (this.options.kind == 'wifi') ? 'wireless' : 'network';
+			return _luci2.NetworkModel._get(pkg, sid, key);
+		},
+
+		set: function(key, val)
+		{
+			var sid = this.options.sid;
+			var pkg = (this.options.kind == 'wifi') ? 'wireless' : 'network';
+			return _luci2.NetworkModel._set(pkg, sid, key, val);
+		},
+
+		init: function()
+		{
+			if (typeof(this.options.type) == 'undefined')
+				this.options.type = 1;
+
+			if (typeof(this.options.kind) == 'undefined')
+				this.options.kind = 'ethernet';
+
+			if (typeof(this.options.networks) == 'undefined')
+				this.options.networks = [ ];
+		},
+
+		name: function()
+		{
+			return this.options.ifname;
+		},
+
+		description: function()
+		{
+			switch (this.options.kind)
+			{
+			case 'alias':
+				return _luci2.tr('Alias for network "%s"').format(this.options.ifname.substring(1));
+
+			case 'bridge':
+				return _luci2.tr('Network bridge');
+
+			case 'ethernet':
+				return _luci2.tr('Network device');
+
+			case 'tunnel':
+				switch (this.options.type)
+				{
+				case 1: /* tuntap */
+					return _luci2.tr('TAP device');
+
+				case 512: /* PPP */
+					return _luci2.tr('PPP tunnel');
+
+				case 768: /* IP-IP Tunnel */
+					return _luci2.tr('IP-in-IP tunnel');
+
+				case 769: /* IP6-IP6 Tunnel */
+					return _luci2.tr('IPv6-in-IPv6 tunnel');
+
+				case 776: /* IPv6-in-IPv4 */
+					return _luci2.tr('IPv6-over-IPv4 tunnel');
+					break;
+
+				case 778: /* GRE over IP */
+					return _luci2.tr('GRE-over-IP tunnel');
+
+				default:
+					return _luci2.tr('Tunnel device');
+				}
+
+			case 'vlan':
+				return _luci2.tr('VLAN %d on %s').format(this.options.vid, this.options.vsw.model);
+
+			case 'wifi':
+				var o = this.options;
+				return _luci2.trc('(Wifi-Mode) "(SSID)" on (radioX)', '%s "%h" on %s').format(
+					o.wmode ? this._wifi_modes[o.wmode] : _luci2.tr('Unknown mode'),
+					o.wssid || '?', o.wdev
+				);
+			}
+
+			return _luci2.tr('Unknown device');
+		},
+
+		icon: function(up)
+		{
+			var kind = this.options.kind;
+
+			if (kind == 'alias')
+				kind = 'ethernet';
+
+			if (typeof(up) == 'undefined')
+				up = this.isUp();
+
+			return _luci2.globals.resource + '/icons/%s%s.png'.format(kind, up ? '' : '_disabled');
+		},
+
+		isUp: function()
+		{
+			var l = _luci2.NetworkModel._cache.devlist;
+
+			for (var i = 0; i < l.length; i++)
+				if (l[i].device == this.options.ifname)
+					return (l[i].is_up === true);
+
+			return false;
+		},
+
+		isAlias: function()
+		{
+			return (this.options.kind == 'alias');
+		},
+
+		isBridge: function()
+		{
+			return (this.options.kind == 'bridge');
+		},
+
+		isBridgeable: function()
+		{
+			return (this.options.type == 1 && this.options.kind != 'bridge');
+		},
+
+		isWireless: function()
+		{
+			return (this.options.kind == 'wifi');
+		},
+
+		isInNetwork: function(net)
+		{
+			if (!(net instanceof _luci2.NetworkModel.Interface))
+				net = _luci2.NetworkModel.getInterface(net);
+
+			if (net)
+			{
+				if (net.options.l3dev == this.options.ifname ||
+				    net.options.l2dev == this.options.ifname)
+					return true;
+
+				var dev = _luci2.NetworkModel._devs[net.options.l2dev];
+				if (dev && dev.kind == 'bridge' && dev.ports)
+					return ($.inArray(this.options.ifname, dev.ports) > -1);
+			}
+
+			return false;
+		},
+
+		getMTU: function()
+		{
+			var dev = _luci2.NetworkModel._cache.devstate[this.options.ifname];
+			if (dev && !isNaN(dev.mtu))
+				return dev.mtu;
+
+			return undefined;
+		},
+
+		getMACAddress: function()
+		{
+			if (this.options.type != 1)
+				return undefined;
+
+			var dev = _luci2.NetworkModel._cache.devstate[this.options.ifname];
+			if (dev && dev.macaddr)
+				return dev.macaddr.toUpperCase();
+
+			return undefined;
+		},
+
+		getInterfaces: function()
+		{
+			return _luci2.NetworkModel.getInterfacesByDevice(this.options.name);
+		},
+
+		getStatistics: function()
+		{
+			var s = this._status('statistics') || { };
+			return {
+				rx_bytes: (s.rx_bytes || 0),
+				tx_bytes: (s.tx_bytes || 0),
+				rx_packets: (s.rx_packets || 0),
+				tx_packets: (s.tx_packets || 0)
+			};
+		},
+
+		getTrafficHistory: function()
+		{
+			var def = new Array(120);
+
+			for (var i = 0; i < 120; i++)
+				def[i] = 0;
+
+			var h = _luci2.NetworkModel._cache.bwstate[this.options.ifname] || { };
+			return {
+				rx_bytes: (h.rx_bytes || def),
+				tx_bytes: (h.tx_bytes || def),
+				rx_packets: (h.rx_packets || def),
+				tx_packets: (h.tx_packets || def)
+			};
+		},
+
+		removeFromInterface: function(iface)
+		{
+			if (!(iface instanceof _luci2.NetworkModel.Interface))
+				iface = _luci2.NetworkModel.getInterface(iface);
+
+			if (!iface)
+				return;
+
+			var ifnames = _luci2.toArray(iface.get('ifname'));
+			if ($.inArray(this.options.ifname, ifnames) > -1)
+				iface.set('ifname', _luci2.filterArray(ifnames, this.options.ifname));
+
+			if (this.options.kind != 'wifi')
+				return;
+
+			var networks = _luci2.toArray(this.get('network'));
+			if ($.inArray(iface.name(), networks) > -1)
+				this.set('network', _luci2.filterArray(networks, iface.name()));
+		},
+
+		attachToInterface: function(iface)
+		{
+			if (!(iface instanceof _luci2.NetworkModel.Interface))
+				iface = _luci2.NetworkModel.getInterface(iface);
+
+			if (!iface)
+				return;
+
+			if (this.options.kind != 'wifi')
+			{
+				var ifnames = _luci2.toArray(iface.get('ifname'));
+				if ($.inArray(this.options.ifname, ifnames) < 0)
+				{
+					ifnames.push(this.options.ifname);
+					iface.set('ifname', (ifnames.length > 1) ? ifnames : ifnames[0]);
+				}
+			}
+			else
+			{
+				var networks = _luci2.toArray(this.get('network'));
+				if ($.inArray(iface.name(), networks) < 0)
+				{
+					networks.push(iface.name());
+					this.set('network', (networks.length > 1) ? networks : networks[0]);
+				}
+			}
+		}
+	});
+
+	this.NetworkModel.Interface = Class.extend({
+		_status: function(key)
+		{
+			var s = _luci2.NetworkModel._cache.ifstate;
+
+			for (var i = 0; i < s.length; i++)
+				if (s[i]['interface'] == this.options.name)
+					return key ? s[i][key] : s[i];
+
+			return undefined;
+		},
+
+		get: function(key)
+		{
+			return _luci2.NetworkModel._get('network', this.options.name, key);
+		},
+
+		set: function(key, val)
+		{
+			return _luci2.NetworkModel._set('network', this.options.name, key, val);
+		},
+
+		name: function()
+		{
+			return this.options.name;
+		},
+
+		protocol: function()
+		{
+			return (this.get('proto') || 'none');
+		},
+
+		isUp: function()
+		{
+			return (this._status('up') === true);
+		},
+
+		isVirtual: function()
+		{
+			return (typeof(this.options.sid) != 'string');
+		},
+
+		getProtocol: function()
+		{
+			var prname = this.get('proto') || 'none';
+			return _luci2.NetworkModel._protos[prname] || _luci2.NetworkModel._protos.none;
+		},
+
+		getUptime: function()
+		{
+			var uptime = this._status('uptime');
+			return isNaN(uptime) ? 0 : uptime;
+		},
+
+		getDevice: function(resolveAlias)
+		{
+			if (this.options.l3dev)
+				return _luci2.NetworkModel.getDevice(this.options.l3dev);
+
+			return undefined;
+		},
+
+		getPhysdev: function()
+		{
+			if (this.options.l2dev)
+				return _luci2.NetworkModel.getDevice(this.options.l2dev);
+
+			return undefined;
+		},
+
+		getSubdevices: function()
+		{
+			var rv = [ ];
+			var dev = this.options.l2dev ?
+				_luci2.NetworkModel._devs[this.options.l2dev] : undefined;
+
+			if (dev && dev.kind == 'bridge' && dev.ports && dev.ports.length)
+				for (var i = 0; i < dev.ports.length; i++)
+					rv.push(_luci2.NetworkModel.getDevice(dev.ports[i]));
+
+			return rv;
+		},
+
+		getIPv4Addrs: function(mask)
+		{
+			var rv = [ ];
+			var addrs = this._status('ipv4-address');
+
+			if (addrs)
+				for (var i = 0; i < addrs.length; i++)
+					if (!mask)
+						rv.push(addrs[i].address);
+					else
+						rv.push('%s/%d'.format(addrs[i].address, addrs[i].mask));
+
+			return rv;
+		},
+
+		getIPv6Addrs: function(mask)
+		{
+			var rv = [ ];
+			var addrs;
+
+			addrs = this._status('ipv6-address');
+
+			if (addrs)
+				for (var i = 0; i < addrs.length; i++)
+					if (!mask)
+						rv.push(addrs[i].address);
+					else
+						rv.push('%s/%d'.format(addrs[i].address, addrs[i].mask));
+
+			addrs = this._status('ipv6-prefix-assignment');
+
+			if (addrs)
+				for (var i = 0; i < addrs.length; i++)
+					if (!mask)
+						rv.push('%s1'.format(addrs[i].address));
+					else
+						rv.push('%s1/%d'.format(addrs[i].address, addrs[i].mask));
+
+			return rv;
+		},
+
+		getDNSAddrs: function()
+		{
+			var rv = [ ];
+			var addrs = this._status('dns-server');
+
+			if (addrs)
+				for (var i = 0; i < addrs.length; i++)
+					rv.push(addrs[i]);
+
+			return rv;
+		},
+
+		getIPv4DNS: function()
+		{
+			var rv = [ ];
+			var dns = this._status('dns-server');
+
+			if (dns)
+				for (var i = 0; i < dns.length; i++)
+					if (dns[i].indexOf(':') == -1)
+						rv.push(dns[i]);
+
+			return rv;
+		},
+
+		getIPv6DNS: function()
+		{
+			var rv = [ ];
+			var dns = this._status('dns-server');
+
+			if (dns)
+				for (var i = 0; i < dns.length; i++)
+					if (dns[i].indexOf(':') > -1)
+						rv.push(dns[i]);
+
+			return rv;
+		},
+
+		getIPv4Gateway: function()
+		{
+			var rt = this._status('route');
+
+			if (rt)
+				for (var i = 0; i < rt.length; i++)
+					if (rt[i].target == '0.0.0.0' && rt[i].mask == 0)
+						return rt[i].nexthop;
+
+			return undefined;
+		},
+
+		getIPv6Gateway: function()
+		{
+			var rt = this._status('route');
+
+			if (rt)
+				for (var i = 0; i < rt.length; i++)
+					if (rt[i].target == '::' && rt[i].mask == 0)
+						return rt[i].nexthop;
+
+			return undefined;
+		},
+
+		getStatistics: function()
+		{
+			var dev = this.getDevice() || new _luci2.NetworkModel.Device({});
+			return dev.getStatistics();
+		},
+
+		getTrafficHistory: function()
+		{
+			var dev = this.getDevice() || new _luci2.NetworkModel.Device({});
+			return dev.getTrafficHistory();
+		},
+
+		setDevices: function(devs)
+		{
+			var dev = this.getPhysdev();
+			var old_devs = [ ];
+			var changed = false;
+
+			if (dev && dev.isBridge())
+				old_devs = this.getSubdevices();
+			else if (dev)
+				old_devs = [ dev ];
+
+			if (old_devs.length != devs.length)
+				changed = true;
+			else
+				for (var i = 0; i < old_devs.length; i++)
+				{
+					var dev = devs[i];
+
+					if (dev instanceof _luci2.NetworkModel.Device)
+						dev = dev.name();
+
+					if (!dev || old_devs[i].name() != dev)
+					{
+						changed = true;
+						break;
+					}
+				}
+
+			if (changed)
+			{
+				for (var i = 0; i < old_devs.length; i++)
+					old_devs[i].removeFromInterface(this);
+
+				for (var i = 0; i < devs.length; i++)
+				{
+					var dev = devs[i];
+
+					if (!(dev instanceof _luci2.NetworkModel.Device))
+						dev = _luci2.NetworkModel.getDevice(dev);
+
+					if (dev)
+						dev.attachToInterface(this);
+				}
+			}
+		},
+
+		changeProtocol: function(proto)
+		{
+			var pr = _luci2.NetworkModel._protos[proto];
+
+			if (!pr)
+				return;
+
+			for (var opt in (this.get() || { }))
+			{
+				switch (opt)
+				{
+				case 'type':
+				case 'ifname':
+				case 'macaddr':
+					if (pr.virtual)
+						this.set(opt, undefined);
+					break;
+
+				case 'auto':
+				case 'mtu':
+					break;
+
+				case 'proto':
+					this.set(opt, pr.protocol);
+					break;
+
+				default:
+					this.set(opt, undefined);
+					break;
+				}
+			}
+		},
+
+		createForm: function(mapwidget)
+		{
+			var self = this;
+			var proto = self.getProtocol();
+			var device = self.getDevice();
+
+			if (!mapwidget)
+				mapwidget = _luci2.cbi.Map;
+
+			var map = new mapwidget('network', {
+				caption:     _luci2.tr('Configure "%s"').format(self.name())
+			});
+
+			var section = map.section(_luci2.cbi.SingleSection, self.name(), {
+				anonymous:   true
+			});
+
+			section.tab({
+				id:      'general',
+				caption: _luci2.tr('General Settings')
+			});
+
+			section.tab({
+				id:      'advanced',
+				caption: _luci2.tr('Advanced Settings')
+			});
+
+			section.tab({
+				id:      'ipv6',
+				caption: _luci2.tr('IPv6')
+			});
+
+			section.tab({
+				id:      'physical',
+				caption: _luci2.tr('Physical Settings')
+			});
+
+
+			section.taboption('general', _luci2.cbi.CheckboxValue, 'auto', {
+				caption:     _luci2.tr('Start on boot'),
+				optional:    true,
+				initial:     true
+			});
+
+			var pr = section.taboption('general', _luci2.cbi.ListValue, 'proto', {
+				caption:     _luci2.tr('Protocol')
+			});
+
+			pr.ucivalue = function(sid) {
+				return self.get('proto') || 'none';
+			};
+
+			var ok = section.taboption('general', _luci2.cbi.ButtonValue, '_confirm', {
+				caption:     _luci2.tr('Really switch?'),
+				description: _luci2.tr('Changing the protocol will clear all configuration for this interface!'),
+				text:        _luci2.tr('Change protocol')
+			});
+
+			ok.on('click', function(ev) {
+				self.changeProtocol(pr.formvalue(ev.data.sid));
+				self.createForm(mapwidget).show();
+			});
+
+			var protos = _luci2.NetworkModel.getProtocols();
+
+			for (var i = 0; i < protos.length; i++)
+				pr.value(protos[i].name, protos[i].description);
+
+			proto.populateForm(section, self);
+
+			if (!proto.virtual)
+			{
+				var br = section.taboption('physical', _luci2.cbi.CheckboxValue, 'type', {
+					caption:     _luci2.tr('Network bridge'),
+					description: _luci2.tr('Merges multiple devices into one logical bridge'),
+					optional:    true,
+					enabled:     'bridge',
+					disabled:    '',
+					initial:     ''
+				});
+
+				section.taboption('physical', _luci2.cbi.DeviceList, '__iface_multi', {
+					caption:     _luci2.tr('Devices'),
+					multiple:    true,
+					bridges:     false
+				}).depends('type', true);
+
+				section.taboption('physical', _luci2.cbi.DeviceList, '__iface_single', {
+					caption:     _luci2.tr('Device'),
+					multiple:    false,
+					bridges:     true
+				}).depends('type', false);
+
+				var mac = section.taboption('physical', _luci2.cbi.InputValue, 'macaddr', {
+					caption:     _luci2.tr('Override MAC'),
+					optional:    true,
+					placeholder: device ? device.getMACAddress() : undefined,
+					datatype:    'macaddr'
+				})
+
+				mac.ucivalue = function(sid)
+				{
+					if (device)
+						return device.get('macaddr');
+
+					return this.callSuper('ucivalue', sid);
+				};
+
+				mac.save = function(sid)
+				{
+					if (!this.changed(sid))
+						return false;
+
+					if (device)
+						device.set('macaddr', this.formvalue(sid));
+					else
+						this.callSuper('set', sid);
+
+					return true;
+				};
+			}
+
+			section.taboption('physical', _luci2.cbi.InputValue, 'mtu', {
+				caption:     _luci2.tr('Override MTU'),
+				optional:    true,
+				placeholder: device ? device.getMTU() : undefined,
+				datatype:    'range(1, 9000)'
+			});
+
+			section.taboption('physical', _luci2.cbi.InputValue, 'metric', {
+				caption:     _luci2.tr('Override Metric'),
+				optional:    true,
+				placeholder: 0,
+				datatype:    'uinteger'
+			});
+
+			for (var field in section.fields)
+			{
+				switch (field)
+				{
+				case 'proto':
+					break;
+
+				case '_confirm':
+					for (var i = 0; i < protos.length; i++)
+						if (protos[i].name != (this.get('proto') || 'none'))
+							section.fields[field].depends('proto', protos[i].name);
+					break;
+
+				default:
+					section.fields[field].depends('proto', this.get('proto') || 'none', true);
+					break;
+				}
+			}
+
+			return map;
+		}
+	});
+
+	this.NetworkModel.Protocol = this.NetworkModel.Interface.extend({
+		description: '__unknown__',
+		tunnel:      false,
+		virtual:     false,
+
+		populateForm: function(section, iface)
+		{
+
+		}
+	});
+
 	this.system = {
 		getSystemInfo: _luci2.rpc.declare({
 			object: 'system',
