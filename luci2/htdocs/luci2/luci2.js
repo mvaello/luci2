@@ -1320,7 +1320,7 @@ function LuCI2()
 
 			for (var i = 0, color = '#';
 				 i < 3;
-				 color += ('00' + ((hash >> i++ * 8) & 0xFF).tozoneing(16)).slice(-2));
+				 color += ('00' + ((hash >> i++ * 8) & 0xFF).tostring(16)).slice(-2));
 
 			return color;
 		},
