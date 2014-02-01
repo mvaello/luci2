@@ -5660,17 +5660,19 @@ function LuCI2()
 				.attr('id', this.id(sid));
 
 			var t = $('<input />')
+				.addClass('form-control')
 				.attr('type', 'text')
 				.hide()
 				.appendTo(d);
 
 			var s = $('<select />')
+				.addClass('form-control')
 				.appendTo(d);
 
 			var evdata = {
 				self: this,
-				input: this.validator(sid, t),
-				select: this.validator(sid, s)
+				input: t,
+				select: s
 			};
 
 			s.change(evdata, this._change);
@@ -5679,6 +5681,9 @@ function LuCI2()
 
 			t.val(this.ucivalue(sid));
 			t.blur();
+
+			this.validator(sid, t);
+			this.validator(sid, s);
 
 			return d;
 		},
