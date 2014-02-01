@@ -308,19 +308,52 @@
 		"description": "Network, switch and routing configuration",
 		"read": {
 			"ubus": {
+				"network": [
+					"get_proto_handlers"
+				],
+				"network.device": [
+					"status"
+				],
+				"network.interface": [
+					"dump"
+				],
+				"network.wireless": [
+					"status"
+				],
 				"luci2.network": [
 					"switch_list",
 					"switch_info",
-					"switch_status"
+					"switch_status",
+					"device_list"
+				],
+				"luci2.network.bwmon": [
+					"devices",
+					"statistics"
 				]
 			},
 			"uci": [
-				"network"
+				"network",
+				"wireless"
 			]
 		},
 		"write": {
 			"uci": [
-				"network"
+				"network",
+				"wireless"
+			]
+		}
+	},
+
+	"firewall": {
+		"description": "Firewall configuration",
+		"read": {
+			"uci": [
+				"firewall"
+			]
+		},
+		"write": {
+			"uci": [
+				"firewall"
 			]
 		}
 	}

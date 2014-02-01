@@ -3,6 +3,12 @@
         "title": "Network",
         "index": 30
     },
+    "network/interfaces": {
+        "title": "Interfaces",
+        "acls": [ "network" ],
+        "view": "network/interfaces",
+        "index": 10
+    },
     "network/switch": {
         "title": "Switch",
         "acls": [ "network" ],
