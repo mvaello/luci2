@@ -6330,7 +6330,7 @@ function LuCI2()
 
 			if (typeof(cb) == 'function')
 				for (var i = 0; i < s2.length; i++)
-					cb.apply(this, [ s2[i] ]);
+					cb.call(this, s2[i]);
 
 			return s2;
 		},
