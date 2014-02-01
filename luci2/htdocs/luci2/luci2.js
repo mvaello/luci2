@@ -175,7 +175,7 @@ String.prototype.format = function()
 
 function LuCI2()
 {
-	var _luci2 = this;
+	var L = this;
 
 	var Class = function() { };
 
@@ -253,42 +253,42 @@ function LuCI2()
 		plural:  function(n) { return 0 + (n != 1) },
 
 		init: function() {
-			if (_luci2.i18n.loaded)
+			if (L.i18n.loaded)
 				return;
 
 			var lang = (navigator.userLanguage || navigator.language || 'en').toLowerCase();
 			var langs = (lang.indexOf('-') > -1) ? [ lang, lang.split(/-/)[0] ] : [ lang ];
 
 			for (var i = 0; i < langs.length; i++)
-				$.ajax('%s/i18n/base.%s.json'.format(_luci2.globals.resource, langs[i]), {
+				$.ajax('%s/i18n/base.%s.json'.format(L.globals.resource, langs[i]), {
 					async:    false,
 					cache:    true,
 					dataType: 'json',
 					success:  function(data) {
-						$.extend(_luci2.i18n.catalog, data);
+						$.extend(L.i18n.catalog, data);
 
-						var pe = _luci2.i18n.catalog[''];
+						var pe = L.i18n.catalog[''];
 						if (pe)
 						{
-							delete _luci2.i18n.catalog[''];
+							delete L.i18n.catalog[''];
 							try {
 								var pf = new Function('n', 'return 0 + (' + pe + ')');
-								_luci2.i18n.plural = pf;
+								L.i18n.plural = pf;
 							} catch (e) { };
 						}
 					}
 				});
 
-			_luci2.i18n.loaded = true;
+			L.i18n.loaded = true;
 		}
 
 	};
 
 	this.tr = function(msgid)
 	{
-		_luci2.i18n.init();
+		L.i18n.init();
 
-		var msgstr = _luci2.i18n.catalog[msgid];
+		var msgstr = L.i18n.catalog[msgid];
 
 		if (typeof(msgstr) == 'undefined')
 			return msgid;
@@ -300,23 +300,23 @@ function LuCI2()
 
 	this.trp = function(msgid, msgid_plural, count)
 	{
-		_luci2.i18n.init();
+		L.i18n.init();
 
-		var msgstr = _luci2.i18n.catalog[msgid];
+		var msgstr = L.i18n.catalog[msgid];
 
 		if (typeof(msgstr) == 'undefined')
 			return (count == 1) ? msgid : msgid_plural;
 		else if (typeof(msgstr) == 'string')
 			return msgstr;
 		else
-			return msgstr[_luci2.i18n.plural(count)];
+			return msgstr[L.i18n.plural(count)];
 	};
 
 	this.trc = function(msgctx, msgid)
 	{
-		_luci2.i18n.init();
+		L.i18n.init();
 
-		var msgstr = _luci2.i18n.catalog[msgid + '\u0004' + msgctx];
+		var msgstr = L.i18n.catalog[msgid + '\u0004' + msgctx];
 
 		if (typeof(msgstr) == 'undefined')
 			return msgid;
@@ -328,16 +328,16 @@ function LuCI2()
 
 	this.trcp = function(msgctx, msgid, msgid_plural, count)
 	{
-		_luci2.i18n.init();
+		L.i18n.init();
 
-		var msgstr = _luci2.i18n.catalog[msgid + '\u0004' + msgctx];
+		var msgstr = L.i18n.catalog[msgid + '\u0004' + msgctx];
 
 		if (typeof(msgstr) == 'undefined')
 			return (count == 1) ? msgid : msgid_plural;
 		else if (typeof(msgstr) == 'string')
 			return msgstr;
 		else
-			return msgstr[_luci2.i18n.plural(count)];
+			return msgstr[L.i18n.plural(count)];
 	};
 
 	this.setHash = function(key, value)
@@ -505,7 +505,7 @@ function LuCI2()
 				data:        JSON.stringify(req),
 				dataType:    'json',
 				type:        'POST',
-				timeout:     _luci2.globals.timeout,
+				timeout:     L.globals.timeout,
 				_rpc_req:   req
 			}).then(cb, cb);
 		},
@@ -536,7 +536,7 @@ function LuCI2()
 			for (var i = 0; i < msg.length; i++)
 			{
 				/* fetch related request info */
-				var req = _luci2.rpc._requests[reqs[i].id];
+				var req = L.rpc._requests[reqs[i].id];
 				if (typeof(req) != 'object')
 					throw 'No related request for JSON response';
 
@@ -567,7 +567,7 @@ function LuCI2()
 				{
 					req.priv[0] = ret;
 					req.priv[1] = req.params;
-					ret = req.filter.apply(_luci2.rpc, req.priv);
+					ret = req.filter.apply(L.rpc, req.priv);
 				}
 
 				/* store response data */
@@ -577,7 +577,7 @@ function LuCI2()
 					data = ret;
 
 				/* delete request object */
-				delete _luci2.rpc._requests[reqs[i].id];
+				delete L.rpc._requests[reqs[i].id];
 			}
 
 			return $.Deferred().resolveWith(this, [ data ]);
@@ -608,7 +608,7 @@ function LuCI2()
 		flush: function()
 		{
 			if (!$.isArray(this._batch))
-				return _luci2.deferrable([ ]);
+				return L.deferrable([ ]);
 
 			var req = this._batch;
 			delete this._batch;
@@ -648,7 +648,7 @@ function LuCI2()
 					id:      _rpc._id++,
 					method:  'call',
 					params:  [
-						_luci2.globals.sid,
+						L.globals.sid,
 						options.object,
 						options.method,
 						params
@@ -660,7 +660,7 @@ function LuCI2()
 				if ($.isArray(_rpc._batch))
 				{
 					req.index = _rpc._batch.push(msg) - 1;
-					return _luci2.deferrable(msg);
+					return L.deferrable(msg);
 				}
 
 				/* call rpc */
@@ -683,33 +683,33 @@ function LuCI2()
 			};
 		},
 
-		_load: _luci2.rpc.declare({
+		_load: L.rpc.declare({
 			object: 'uci',
 			method: 'get',
 			params: [ 'config' ],
 			expect: { values: { } }
 		}),
 
-		_order: _luci2.rpc.declare({
+		_order: L.rpc.declare({
 			object: 'uci',
 			method: 'order',
 			params: [ 'config', 'sections' ]
 		}),
 
-		_add: _luci2.rpc.declare({
+		_add: L.rpc.declare({
 			object: 'uci',
 			method: 'add',
 			params: [ 'config', 'type', 'name', 'values' ],
 			expect: { section: '' }
 		}),
 
-		_set: _luci2.rpc.declare({
+		_set: L.rpc.declare({
 			object: 'uci',
 			method: 'set',
 			params: [ 'config', 'section', 'values' ]
 		}),
 
-		_delete: _luci2.rpc.declare({
+		_delete: L.rpc.declare({
 			object: 'uci',
 			method: 'delete',
 			params: [ 'config', 'section', 'options' ]
@@ -724,7 +724,7 @@ function LuCI2()
 			if (!$.isArray(packages))
 				packages = [ packages ];
 
-			_luci2.rpc.batch();
+			L.rpc.batch();
 
 			for (var i = 0; i < packages.length; i++)
 				if (!seen[packages[i]])
@@ -734,7 +734,7 @@ function LuCI2()
 					self._load(packages[i]);
 				}
 
-			return _luci2.rpc.flush().then(function(responses) {
+			return L.rpc.flush().then(function(responses) {
 				for (var i = 0; i < responses.length; i++)
 					self.state.values[pkgs[i]] = responses[i];
 
@@ -923,7 +923,7 @@ function LuCI2()
 
 				/* undelete option */
 				if (d[conf] && d[conf][sid])
-					d[conf][sid] = _luci2.filterArray(d[conf][sid], opt);
+					d[conf][sid] = L.filterArray(d[conf][sid], opt);
 
 				c[conf][sid][opt] = val;
 			}
@@ -964,9 +964,9 @@ function LuCI2()
 			var r = this.state.reorder;
 
 			if ($.isEmptyObject(r))
-				return _luci2.deferrable();
+				return L.deferrable();
 
-			_luci2.rpc.batch();
+			L.rpc.batch();
 
 			/*
 			 gather all created and existing sections, sort them according
@@ -999,7 +999,7 @@ function LuCI2()
 			}
 
 			this.state.reorder = { };
-			return _luci2.rpc.flush();
+			return L.rpc.flush();
 		},
 
 		swap: function(conf, sid1, sid2)
@@ -1022,7 +1022,7 @@ function LuCI2()
 
 		save: function()
 		{
-			_luci2.rpc.batch();
+			L.rpc.batch();
 
 			var self = this;
 			var snew = [ ];
@@ -1064,7 +1064,7 @@ function LuCI2()
 						self._delete(c, s, (o === true) ? undefined : o);
 					}
 
-			return _luci2.rpc.flush().then(function(responses) {
+			return L.rpc.flush().then(function(responses) {
 				/*
 				 array "snew" holds references to the created uci sections,
 				 use it to assign the returned names of the new sections
@@ -1076,13 +1076,13 @@ function LuCI2()
 			});
 		},
 
-		_apply: _luci2.rpc.declare({
+		_apply: L.rpc.declare({
 			object: 'uci',
 			method: 'apply',
 			params: [ 'timeout', 'rollback' ]
 		}),
 
-		_confirm: _luci2.rpc.declare({
+		_confirm: L.rpc.declare({
 			object: 'uci',
 			method: 'confirm'
 		}),
@@ -1127,7 +1127,7 @@ function LuCI2()
 			return deferred;
 		},
 
-		changes: _luci2.rpc.declare({
+		changes: L.rpc.declare({
 			object: 'uci',
 			method: 'changes',
 			expect: { changes: { } }
@@ -1135,19 +1135,19 @@ function LuCI2()
 
 		readable: function(conf)
 		{
-			return _luci2.session.hasACL('uci', conf, 'read');
+			return L.session.hasACL('uci', conf, 'read');
 		},
 
 		writable: function(conf)
 		{
-			return _luci2.session.hasACL('uci', conf, 'write');
+			return L.session.hasACL('uci', conf, 'write');
 		}
 	});
 
 	this.uci = new this.UCIContext();
 
 	this.wireless = {
-		listDeviceNames: _luci2.rpc.declare({
+		listDeviceNames: L.rpc.declare({
 			object: 'iwinfo',
 			method: 'devices',
 			expect: { 'devices': [ ] },
@@ -1157,7 +1157,7 @@ function LuCI2()
 			}
 		}),
 
-		getDeviceStatus: _luci2.rpc.declare({
+		getDeviceStatus: L.rpc.declare({
 			object: 'iwinfo',
 			method: 'info',
 			params: [ 'device' ],
@@ -1172,7 +1172,7 @@ function LuCI2()
 			}
 		}),
 
-		getAssocList: _luci2.rpc.declare({
+		getAssocList: L.rpc.declare({
 			object: 'iwinfo',
 			method: 'assoclist',
 			params: [ 'device' ],
@@ -1196,12 +1196,12 @@ function LuCI2()
 
 		getWirelessStatus: function() {
 			return this.listDeviceNames().then(function(names) {
-				_luci2.rpc.batch();
+				L.rpc.batch();
 
 				for (var i = 0; i < names.length; i++)
-					_luci2.wireless.getDeviceStatus(names[i]);
+					L.wireless.getDeviceStatus(names[i]);
 
-				return _luci2.rpc.flush();
+				return L.rpc.flush();
 			}).then(function(networks) {
 				var rv = { };
 
@@ -1241,12 +1241,12 @@ function LuCI2()
 		getAssocLists: function()
 		{
 			return this.listDeviceNames().then(function(names) {
-				_luci2.rpc.batch();
+				L.rpc.batch();
 
 				for (var i = 0; i < names.length; i++)
-					_luci2.wireless.getAssocList(names[i]);
+					L.wireless.getAssocList(names[i]);
 
-				return _luci2.rpc.flush();
+				return L.rpc.flush();
 			}).then(function(assoclists) {
 				var rv = [ ];
 
@@ -1269,21 +1269,21 @@ function LuCI2()
 			}
 
 			if (!enc || !enc.enabled)
-				return _luci2.tr('None');
+				return L.tr('None');
 
 			if (enc.wep)
 			{
 				if (enc.wep.length == 2)
-					return _luci2.tr('WEP Open/Shared') + ' (%s)'.format(format_list(enc.ciphers, ', '));
+					return L.tr('WEP Open/Shared') + ' (%s)'.format(format_list(enc.ciphers, ', '));
 				else if (enc.wep[0] == 'shared')
-					return _luci2.tr('WEP Shared Auth') + ' (%s)'.format(format_list(enc.ciphers, ', '));
+					return L.tr('WEP Shared Auth') + ' (%s)'.format(format_list(enc.ciphers, ', '));
 				else
-					return _luci2.tr('WEP Open System') + ' (%s)'.format(format_list(enc.ciphers, ', '));
+					return L.tr('WEP Open System') + ' (%s)'.format(format_list(enc.ciphers, ', '));
 			}
 			else if (enc.wpa)
 			{
 				if (enc.wpa.length == 2)
-					return _luci2.tr('mixed WPA/WPA2') + ' %s (%s)'.format(
+					return L.tr('mixed WPA/WPA2') + ' %s (%s)'.format(
 						format_list(enc.authentication, '/'),
 						format_list(enc.ciphers, ', ')
 					);
@@ -1299,7 +1299,7 @@ function LuCI2()
 					);
 			}
 
-			return _luci2.tr('Unknown');
+			return L.tr('Unknown');
 		}
 	};
 
@@ -1330,7 +1330,7 @@ function LuCI2()
 			var self = this;
 			var zone = undefined;
 
-			return _luci2.uci.sections('firewall', 'zone', function(z) {
+			return L.uci.sections('firewall', 'zone', function(z) {
 				if (!z.name || !z.network)
 					return;
 
@@ -1365,37 +1365,37 @@ function LuCI2()
 		],
 
 		_cache_functions: [
-			'protolist', 0, _luci2.rpc.declare({
+			'protolist', 0, L.rpc.declare({
 				object: 'network',
 				method: 'get_proto_handlers',
 				expect: { '': { } }
 			}),
-			'ifstate', 1, _luci2.rpc.declare({
+			'ifstate', 1, L.rpc.declare({
 				object: 'network.interface',
 				method: 'dump',
 				expect: { 'interface': [ ] }
 			}),
-			'devstate', 2, _luci2.rpc.declare({
+			'devstate', 2, L.rpc.declare({
 				object: 'network.device',
 				method: 'status',
 				expect: { '': { } }
 			}),
-			'wifistate', 0, _luci2.rpc.declare({
+			'wifistate', 0, L.rpc.declare({
 				object: 'network.wireless',
 				method: 'status',
 				expect: { '': { } }
 			}),
-			'bwstate', 2, _luci2.rpc.declare({
+			'bwstate', 2, L.rpc.declare({
 				object: 'luci2.network.bwmon',
 				method: 'statistics',
 				expect: { 'statistics': { } }
 			}),
-			'devlist', 2, _luci2.rpc.declare({
+			'devlist', 2, L.rpc.declare({
 				object: 'luci2.network',
 				method: 'device_list',
 				expect: { 'devices': [ ] }
 			}),
-			'swlist', 0, _luci2.rpc.declare({
+			'swlist', 0, L.rpc.declare({
 				object: 'luci2.network',
 				method: 'switch_list',
 				expect: { 'switches': [ ] }
@@ -1404,8 +1404,8 @@ function LuCI2()
 
 		_fetch_protocol: function(proto)
 		{
-			var url = _luci2.globals.resource + '/proto/' + proto + '.js';
-			var self = _luci2.NetworkModel;
+			var url = L.globals.resource + '/proto/' + proto + '.js';
+			var self = L.NetworkModel;
 
 			var def = $.Deferred();
 
@@ -1418,7 +1418,7 @@ function LuCI2()
 					var protoConstructorSource = (
 						'(function(L, $) { ' +
 							'return %s' +
-						'})(_luci2, $);\n\n' +
+						'})(L, $);\n\n' +
 						'//@ sourceURL=%s'
 					).format(data, url);
 
@@ -1440,7 +1440,7 @@ function LuCI2()
 
 		_fetch_protocols: function()
 		{
-			var self = _luci2.NetworkModel;
+			var self = L.NetworkModel;
 			var deferreds = [ ];
 
 			for (var proto in self._cache.protolist)
@@ -1449,7 +1449,7 @@ function LuCI2()
 			return $.when.apply($, deferreds);
 		},
 
-		_fetch_swstate: _luci2.rpc.declare({
+		_fetch_swstate: L.rpc.declare({
 			object: 'luci2.network',
 			method: 'switch_info',
 			params: [ 'switch' ],
@@ -1457,7 +1457,7 @@ function LuCI2()
 		}),
 
 		_fetch_swstate_cb: function(responses) {
-			var self = _luci2.NetworkModel;
+			var self = L.NetworkModel;
 			var swlist = self._cache.swlist;
 			var swstate = self._cache.swstate = { };
 
@@ -1467,7 +1467,7 @@ function LuCI2()
 
 		_fetch_cache_cb: function(level)
 		{
-			var self = _luci2.NetworkModel;
+			var self = L.NetworkModel;
 			var name = '_fetch_cache_cb_' + level;
 
 			return self[name] || (
@@ -1479,42 +1479,42 @@ function LuCI2()
 
 					if (!level)
 					{
-						_luci2.rpc.batch();
+						L.rpc.batch();
 
 						for (var i = 0; i < self._cache.swlist.length; i++)
 							self._fetch_swstate(self._cache.swlist[i]);
 
-						return _luci2.rpc.flush().then(self._fetch_swstate_cb);
+						return L.rpc.flush().then(self._fetch_swstate_cb);
 					}
 
-					return _luci2.deferrable();
+					return L.deferrable();
 				}
 			);
 		},
 
 		_fetch_cache: function(level)
 		{
-			var self = _luci2.NetworkModel;
+			var self = L.NetworkModel;
 
-			return _luci2.uci.load(['network', 'wireless']).then(function() {
-				_luci2.rpc.batch();
+			return L.uci.load(['network', 'wireless']).then(function() {
+				L.rpc.batch();
 
 				for (var i = 0; i < self._cache_functions.length; i += 3)
 					if (!level || self._cache_functions[i + 1] == level)
 						self._cache_functions[i + 2]();
 
-				return _luci2.rpc.flush().then(self._fetch_cache_cb(level || 0));
+				return L.rpc.flush().then(self._fetch_cache_cb(level || 0));
 			});
 		},
 
 		_get: function(pkg, sid, key)
 		{
-			return _luci2.uci.get(pkg, sid, key);
+			return L.uci.get(pkg, sid, key);
 		},
 
 		_set: function(pkg, sid, key, val)
 		{
-			return _luci2.uci.set(pkg, sid, key, val);
+			return L.uci.set(pkg, sid, key, val);
 		},
 
 		_is_blacklisted: function(dev)
@@ -1568,7 +1568,7 @@ function LuCI2()
 
 		_parse_devices: function()
 		{
-			var self = _luci2.NetworkModel;
+			var self = L.NetworkModel;
 			var wificount = { };
 
 			for (var ifname in self._cache.devstate)
@@ -1627,7 +1627,7 @@ function LuCI2()
 				}
 			}
 
-			var net = _luci2.uci.sections('network');
+			var net = L.uci.sections('network');
 			for (var i = 0; i < net.length; i++)
 			{
 				var s = net[i];
@@ -1649,7 +1649,7 @@ function LuCI2()
 				}
 				else if (s['.type'] == 'interface' && !s['.anonymous'] && s.ifname)
 				{
-					var ifnames = _luci2.toArray(s.ifname);
+					var ifnames = L.toArray(s.ifname);
 
 					for (var j = 0; j < ifnames.length; j++)
 						self._get_dev(ifnames[j]);
@@ -1667,7 +1667,7 @@ function LuCI2()
 				{
 					var sw = self._cache.swstate[s.device];
 					var vid = parseInt(s.vid || s.vlan);
-					var ports = _luci2.toArray(s.ports);
+					var ports = L.toArray(s.ports);
 
 					if (!sw || !ports.length || isNaN(vid))
 						continue;
@@ -1703,7 +1703,7 @@ function LuCI2()
 				}
 			}
 
-			var wifi = _luci2.uci.sections('wireless');
+			var wifi = L.uci.sections('wireless');
 			for (var i = 0; i < wifi.length; i++)
 			{
 				var s = wifi[i];
@@ -1748,7 +1748,7 @@ function LuCI2()
 
 				if (s['.type'] == 'interface' && !s['.anonymous'] && s.type == 'bridge')
 				{
-					var ifnames = _luci2.toArray(s.ifname);
+					var ifnames = L.toArray(s.ifname);
 
 					for (var ifname in self._devs)
 					{
@@ -1757,7 +1757,7 @@ function LuCI2()
 						if (dev.kind != 'wifi')
 							continue;
 
-						var wnets = _luci2.toArray(_luci2.uci.get('wireless', dev.sid, 'network'));
+						var wnets = L.toArray(L.uci.get('wireless', dev.sid, 'network'));
 						if ($.inArray(sid, wnets) > -1)
 							ifnames.push(ifname);
 					}
@@ -1773,8 +1773,8 @@ function LuCI2()
 
 		_parse_interfaces: function()
 		{
-			var self = _luci2.NetworkModel;
-			var net = _luci2.uci.sections('network');
+			var self = L.NetworkModel;
+			var net = L.uci.sections('network');
 
 			for (var i = 0; i < net.length; i++)
 			{
@@ -1789,7 +1789,7 @@ function LuCI2()
 					var l3dev = undefined;
 					var l2dev = undefined;
 
-					var ifnames = _luci2.toArray(s.ifname);
+					var ifnames = L.toArray(s.ifname);
 
 					for (var ifname in self._devs)
 					{
@@ -1798,7 +1798,7 @@ function LuCI2()
 						if (dev.kind != 'wifi')
 							continue;
 
-						var wnets = _luci2.toArray(_luci2.uci.get('wireless', dev.sid, 'network'));
+						var wnets = L.toArray(L.uci.get('wireless', dev.sid, 'network'));
 						if ($.inArray(entry.name, wnets) > -1)
 							ifnames.push(ifname);
 					}
@@ -1844,7 +1844,7 @@ function LuCI2()
 			var self = this;
 
 			if (self._cache)
-				return _luci2.deferrable();
+				return L.deferrable();
 
 			self._cache  = { };
 			self._devs   = { };
@@ -1887,14 +1887,14 @@ function LuCI2()
 
 			for (var ifname in this._devs)
 				if (ifname != 'lo')
-					devs.push(new _luci2.NetworkModel.Device(this._devs[ifname]));
+					devs.push(new L.NetworkModel.Device(this._devs[ifname]));
 
 			return devs.sort(this._sort_devices);
 		},
 
 		getDeviceByInterface: function(iface)
 		{
-			if (iface instanceof _luci2.NetworkModel.Interface)
+			if (iface instanceof L.NetworkModel.Interface)
 				iface = iface.name();
 
 			if (this._ifaces[iface])
@@ -1907,14 +1907,14 @@ function LuCI2()
 		getDevice: function(ifname)
 		{
 			if (this._devs[ifname])
-				return new _luci2.NetworkModel.Device(this._devs[ifname]);
+				return new L.NetworkModel.Device(this._devs[ifname]);
 
 			return undefined;
 		},
 
 		createDevice: function(name)
 		{
-			return new _luci2.NetworkModel.Device(this._get_dev(name));
+			return new L.NetworkModel.Device(this._get_dev(name));
 		},
 
 		getInterfaces: function()
@@ -1941,7 +1941,7 @@ function LuCI2()
 		{
 			var ifaces = [ ];
 
-			if (dev instanceof _luci2.NetworkModel.Device)
+			if (dev instanceof L.NetworkModel.Device)
 				dev = dev.name();
 
 			for (var name in this._ifaces)
@@ -1966,7 +1966,7 @@ function LuCI2()
 		getInterface: function(iface)
 		{
 			if (this._ifaces[iface])
-				return new _luci2.NetworkModel.Interface(this._ifaces[iface]);
+				return new L.NetworkModel.Interface(this._ifaces[iface]);
 
 			return undefined;
 		},
@@ -2030,7 +2030,7 @@ function LuCI2()
 
 		resolveAlias: function(ifname)
 		{
-			if (ifname instanceof _luci2.NetworkModel.Device)
+			if (ifname instanceof L.NetworkModel.Device)
 				ifname = ifname.name();
 
 			var dev = this._devs[ifname];
@@ -2054,16 +2054,16 @@ function LuCI2()
 
 	this.NetworkModel.Device = Class.extend({
 		_wifi_modes: {
-			ap: _luci2.tr('Master'),
-			sta: _luci2.tr('Client'),
-			adhoc: _luci2.tr('Ad-Hoc'),
-			monitor: _luci2.tr('Monitor'),
-			wds: _luci2.tr('Static WDS')
+			ap: L.tr('Master'),
+			sta: L.tr('Client'),
+			adhoc: L.tr('Ad-Hoc'),
+			monitor: L.tr('Monitor'),
+			wds: L.tr('Static WDS')
 		},
 
 		_status: function(key)
 		{
-			var s = _luci2.NetworkModel._cache.devstate[this.options.ifname];
+			var s = L.NetworkModel._cache.devstate[this.options.ifname];
 
 			if (s)
 				return key ? s[key] : s;
@@ -2075,14 +2075,14 @@ function LuCI2()
 		{
 			var sid = this.options.sid;
 			var pkg = (this.options.kind == 'wifi') ? 'wireless' : 'network';
-			return _luci2.NetworkModel._get(pkg, sid, key);
+			return L.NetworkModel._get(pkg, sid, key);
 		},
 
 		set: function(key, val)
 		{
 			var sid = this.options.sid;
 			var pkg = (this.options.kind == 'wifi') ? 'wireless' : 'network';
-			return _luci2.NetworkModel._set(pkg, sid, key, val);
+			return L.NetworkModel._set(pkg, sid, key, val);
 		},
 
 		init: function()
@@ -2107,52 +2107,52 @@ function LuCI2()
 			switch (this.options.kind)
 			{
 			case 'alias':
-				return _luci2.tr('Alias for network "%s"').format(this.options.ifname.substring(1));
+				return L.tr('Alias for network "%s"').format(this.options.ifname.substring(1));
 
 			case 'bridge':
-				return _luci2.tr('Network bridge');
+				return L.tr('Network bridge');
 
 			case 'ethernet':
-				return _luci2.tr('Network device');
+				return L.tr('Network device');
 
 			case 'tunnel':
 				switch (this.options.type)
 				{
 				case 1: /* tuntap */
-					return _luci2.tr('TAP device');
+					return L.tr('TAP device');
 
 				case 512: /* PPP */
-					return _luci2.tr('PPP tunnel');
+					return L.tr('PPP tunnel');
 
 				case 768: /* IP-IP Tunnel */
-					return _luci2.tr('IP-in-IP tunnel');
+					return L.tr('IP-in-IP tunnel');
 
 				case 769: /* IP6-IP6 Tunnel */
-					return _luci2.tr('IPv6-in-IPv6 tunnel');
+					return L.tr('IPv6-in-IPv6 tunnel');
 
 				case 776: /* IPv6-in-IPv4 */
-					return _luci2.tr('IPv6-over-IPv4 tunnel');
+					return L.tr('IPv6-over-IPv4 tunnel');
 					break;
 
 				case 778: /* GRE over IP */
-					return _luci2.tr('GRE-over-IP tunnel');
+					return L.tr('GRE-over-IP tunnel');
 
 				default:
-					return _luci2.tr('Tunnel device');
+					return L.tr('Tunnel device');
 				}
 
 			case 'vlan':
-				return _luci2.tr('VLAN %d on %s').format(this.options.vid, this.options.vsw.model);
+				return L.tr('VLAN %d on %s').format(this.options.vid, this.options.vsw.model);
 
 			case 'wifi':
 				var o = this.options;
-				return _luci2.trc('(Wifi-Mode) "(SSID)" on (radioX)', '%s "%h" on %s').format(
-					o.wmode ? this._wifi_modes[o.wmode] : _luci2.tr('Unknown mode'),
+				return L.trc('(Wifi-Mode) "(SSID)" on (radioX)', '%s "%h" on %s').format(
+					o.wmode ? this._wifi_modes[o.wmode] : L.tr('Unknown mode'),
 					o.wssid || '?', o.wdev
 				);
 			}
 
-			return _luci2.tr('Unknown device');
+			return L.tr('Unknown device');
 		},
 
 		icon: function(up)
@@ -2165,12 +2165,12 @@ function LuCI2()
 			if (typeof(up) == 'undefined')
 				up = this.isUp();
 
-			return _luci2.globals.resource + '/icons/%s%s.png'.format(kind, up ? '' : '_disabled');
+			return L.globals.resource + '/icons/%s%s.png'.format(kind, up ? '' : '_disabled');
 		},
 
 		isUp: function()
 		{
-			var l = _luci2.NetworkModel._cache.devlist;
+			var l = L.NetworkModel._cache.devlist;
 
 			for (var i = 0; i < l.length; i++)
 				if (l[i].device == this.options.ifname)
@@ -2201,8 +2201,8 @@ function LuCI2()
 
 		isInNetwork: function(net)
 		{
-			if (!(net instanceof _luci2.NetworkModel.Interface))
-				net = _luci2.NetworkModel.getInterface(net);
+			if (!(net instanceof L.NetworkModel.Interface))
+				net = L.NetworkModel.getInterface(net);
 
 			if (net)
 			{
@@ -2210,7 +2210,7 @@ function LuCI2()
 				    net.options.l2dev == this.options.ifname)
 					return true;
 
-				var dev = _luci2.NetworkModel._devs[net.options.l2dev];
+				var dev = L.NetworkModel._devs[net.options.l2dev];
 				if (dev && dev.kind == 'bridge' && dev.ports)
 					return ($.inArray(this.options.ifname, dev.ports) > -1);
 			}
@@ -2220,7 +2220,7 @@ function LuCI2()
 
 		getMTU: function()
 		{
-			var dev = _luci2.NetworkModel._cache.devstate[this.options.ifname];
+			var dev = L.NetworkModel._cache.devstate[this.options.ifname];
 			if (dev && !isNaN(dev.mtu))
 				return dev.mtu;
 
@@ -2232,7 +2232,7 @@ function LuCI2()
 			if (this.options.type != 1)
 				return undefined;
 
-			var dev = _luci2.NetworkModel._cache.devstate[this.options.ifname];
+			var dev = L.NetworkModel._cache.devstate[this.options.ifname];
 			if (dev && dev.macaddr)
 				return dev.macaddr.toUpperCase();
 
@@ -2241,7 +2241,7 @@ function LuCI2()
 
 		getInterfaces: function()
 		{
-			return _luci2.NetworkModel.getInterfacesByDevice(this.options.name);
+			return L.NetworkModel.getInterfacesByDevice(this.options.name);
 		},
 
 		getStatistics: function()
@@ -2262,7 +2262,7 @@ function LuCI2()
 			for (var i = 0; i < 120; i++)
 				def[i] = 0;
 
-			var h = _luci2.NetworkModel._cache.bwstate[this.options.ifname] || { };
+			var h = L.NetworkModel._cache.bwstate[this.options.ifname] || { };
 			return {
 				rx_bytes: (h.rx_bytes || def),
 				tx_bytes: (h.tx_bytes || def),
@@ -2273,35 +2273,35 @@ function LuCI2()
 
 		removeFromInterface: function(iface)
 		{
-			if (!(iface instanceof _luci2.NetworkModel.Interface))
-				iface = _luci2.NetworkModel.getInterface(iface);
+			if (!(iface instanceof L.NetworkModel.Interface))
+				iface = L.NetworkModel.getInterface(iface);
 
 			if (!iface)
 				return;
 
-			var ifnames = _luci2.toArray(iface.get('ifname'));
+			var ifnames = L.toArray(iface.get('ifname'));
 			if ($.inArray(this.options.ifname, ifnames) > -1)
-				iface.set('ifname', _luci2.filterArray(ifnames, this.options.ifname));
+				iface.set('ifname', L.filterArray(ifnames, this.options.ifname));
 
 			if (this.options.kind != 'wifi')
 				return;
 
-			var networks = _luci2.toArray(this.get('network'));
+			var networks = L.toArray(this.get('network'));
 			if ($.inArray(iface.name(), networks) > -1)
-				this.set('network', _luci2.filterArray(networks, iface.name()));
+				this.set('network', L.filterArray(networks, iface.name()));
 		},
 
 		attachToInterface: function(iface)
 		{
-			if (!(iface instanceof _luci2.NetworkModel.Interface))
-				iface = _luci2.NetworkModel.getInterface(iface);
+			if (!(iface instanceof L.NetworkModel.Interface))
+				iface = L.NetworkModel.getInterface(iface);
 
 			if (!iface)
 				return;
 
 			if (this.options.kind != 'wifi')
 			{
-				var ifnames = _luci2.toArray(iface.get('ifname'));
+				var ifnames = L.toArray(iface.get('ifname'));
 				if ($.inArray(this.options.ifname, ifnames) < 0)
 				{
 					ifnames.push(this.options.ifname);
@@ -2310,7 +2310,7 @@ function LuCI2()
 			}
 			else
 			{
-				var networks = _luci2.toArray(this.get('network'));
+				var networks = L.toArray(this.get('network'));
 				if ($.inArray(iface.name(), networks) < 0)
 				{
 					networks.push(iface.name());
@@ -2323,7 +2323,7 @@ function LuCI2()
 	this.NetworkModel.Interface = Class.extend({
 		_status: function(key)
 		{
-			var s = _luci2.NetworkModel._cache.ifstate;
+			var s = L.NetworkModel._cache.ifstate;
 
 			for (var i = 0; i < s.length; i++)
 				if (s[i]['interface'] == this.options.name)
@@ -2334,12 +2334,12 @@ function LuCI2()
 
 		get: function(key)
 		{
-			return _luci2.NetworkModel._get('network', this.options.name, key);
+			return L.NetworkModel._get('network', this.options.name, key);
 		},
 
 		set: function(key, val)
 		{
-			return _luci2.NetworkModel._set('network', this.options.name, key, val);
+			return L.NetworkModel._set('network', this.options.name, key, val);
 		},
 
 		name: function()
@@ -2365,7 +2365,7 @@ function LuCI2()
 		getProtocol: function()
 		{
 			var prname = this.get('proto') || 'none';
-			return _luci2.NetworkModel._protos[prname] || _luci2.NetworkModel._protos.none;
+			return L.NetworkModel._protos[prname] || L.NetworkModel._protos.none;
 		},
 
 		getUptime: function()
@@ -2377,7 +2377,7 @@ function LuCI2()
 		getDevice: function(resolveAlias)
 		{
 			if (this.options.l3dev)
-				return _luci2.NetworkModel.getDevice(this.options.l3dev);
+				return L.NetworkModel.getDevice(this.options.l3dev);
 
 			return undefined;
 		},
@@ -2385,7 +2385,7 @@ function LuCI2()
 		getPhysdev: function()
 		{
 			if (this.options.l2dev)
-				return _luci2.NetworkModel.getDevice(this.options.l2dev);
+				return L.NetworkModel.getDevice(this.options.l2dev);
 
 			return undefined;
 		},
@@ -2394,11 +2394,11 @@ function LuCI2()
 		{
 			var rv = [ ];
 			var dev = this.options.l2dev ?
-				_luci2.NetworkModel._devs[this.options.l2dev] : undefined;
+				L.NetworkModel._devs[this.options.l2dev] : undefined;
 
 			if (dev && dev.kind == 'bridge' && dev.ports && dev.ports.length)
 				for (var i = 0; i < dev.ports.length; i++)
-					rv.push(_luci2.NetworkModel.getDevice(dev.ports[i]));
+					rv.push(L.NetworkModel.getDevice(dev.ports[i]));
 
 			return rv;
 		},
@@ -2508,13 +2508,13 @@ function LuCI2()
 
 		getStatistics: function()
 		{
-			var dev = this.getDevice() || new _luci2.NetworkModel.Device({});
+			var dev = this.getDevice() || new L.NetworkModel.Device({});
 			return dev.getStatistics();
 		},
 
 		getTrafficHistory: function()
 		{
-			var dev = this.getDevice() || new _luci2.NetworkModel.Device({});
+			var dev = this.getDevice() || new L.NetworkModel.Device({});
 			return dev.getTrafficHistory();
 		},
 
@@ -2536,7 +2536,7 @@ function LuCI2()
 				{
 					var dev = devs[i];
 
-					if (dev instanceof _luci2.NetworkModel.Device)
+					if (dev instanceof L.NetworkModel.Device)
 						dev = dev.name();
 
 					if (!dev || old_devs[i].name() != dev)
@@ -2555,8 +2555,8 @@ function LuCI2()
 				{
 					var dev = devs[i];
 
-					if (!(dev instanceof _luci2.NetworkModel.Device))
-						dev = _luci2.NetworkModel.getDevice(dev);
+					if (!(dev instanceof L.NetworkModel.Device))
+						dev = L.NetworkModel.getDevice(dev);
 
 					if (dev)
 						dev.attachToInterface(this);
@@ -2566,7 +2566,7 @@ function LuCI2()
 
 		changeProtocol: function(proto)
 		{
-			var pr = _luci2.NetworkModel._protos[proto];
+			var pr = L.NetworkModel._protos[proto];
 
 			if (!pr)
 				return;
@@ -2604,55 +2604,55 @@ function LuCI2()
 			var device = self.getDevice();
 
 			if (!mapwidget)
-				mapwidget = _luci2.cbi.Map;
+				mapwidget = L.cbi.Map;
 
 			var map = new mapwidget('network', {
-				caption:     _luci2.tr('Configure "%s"').format(self.name())
+				caption:     L.tr('Configure "%s"').format(self.name())
 			});
 
-			var section = map.section(_luci2.cbi.SingleSection, self.name(), {
+			var section = map.section(L.cbi.SingleSection, self.name(), {
 				anonymous:   true
 			});
 
 			section.tab({
 				id:      'general',
-				caption: _luci2.tr('General Settings')
+				caption: L.tr('General Settings')
 			});
 
 			section.tab({
 				id:      'advanced',
-				caption: _luci2.tr('Advanced Settings')
+				caption: L.tr('Advanced Settings')
 			});
 
 			section.tab({
 				id:      'ipv6',
-				caption: _luci2.tr('IPv6')
+				caption: L.tr('IPv6')
 			});
 
 			section.tab({
 				id:      'physical',
-				caption: _luci2.tr('Physical Settings')
+				caption: L.tr('Physical Settings')
 			});
 
 
-			section.taboption('general', _luci2.cbi.CheckboxValue, 'auto', {
-				caption:     _luci2.tr('Start on boot'),
+			section.taboption('general', L.cbi.CheckboxValue, 'auto', {
+				caption:     L.tr('Start on boot'),
 				optional:    true,
 				initial:     true
 			});
 
-			var pr = section.taboption('general', _luci2.cbi.ListValue, 'proto', {
-				caption:     _luci2.tr('Protocol')
+			var pr = section.taboption('general', L.cbi.ListValue, 'proto', {
+				caption:     L.tr('Protocol')
 			});
 
 			pr.ucivalue = function(sid) {
 				return self.get('proto') || 'none';
 			};
 
-			var ok = section.taboption('general', _luci2.cbi.ButtonValue, '_confirm', {
-				caption:     _luci2.tr('Really switch?'),
-				description: _luci2.tr('Changing the protocol will clear all configuration for this interface!'),
-				text:        _luci2.tr('Change protocol')
+			var ok = section.taboption('general', L.cbi.ButtonValue, '_confirm', {
+				caption:     L.tr('Really switch?'),
+				description: L.tr('Changing the protocol will clear all configuration for this interface!'),
+				text:        L.tr('Change protocol')
 			});
 
 			ok.on('click', function(ev) {
@@ -2660,7 +2660,7 @@ function LuCI2()
 				self.createForm(mapwidget).show();
 			});
 
-			var protos = _luci2.NetworkModel.getProtocols();
+			var protos = L.NetworkModel.getProtocols();
 
 			for (var i = 0; i < protos.length; i++)
 				pr.value(protos[i].name, protos[i].description);
@@ -2669,29 +2669,29 @@ function LuCI2()
 
 			if (!proto.virtual)
 			{
-				var br = section.taboption('physical', _luci2.cbi.CheckboxValue, 'type', {
-					caption:     _luci2.tr('Network bridge'),
-					description: _luci2.tr('Merges multiple devices into one logical bridge'),
+				var br = section.taboption('physical', L.cbi.CheckboxValue, 'type', {
+					caption:     L.tr('Network bridge'),
+					description: L.tr('Merges multiple devices into one logical bridge'),
 					optional:    true,
 					enabled:     'bridge',
 					disabled:    '',
 					initial:     ''
 				});
 
-				section.taboption('physical', _luci2.cbi.DeviceList, '__iface_multi', {
-					caption:     _luci2.tr('Devices'),
+				section.taboption('physical', L.cbi.DeviceList, '__iface_multi', {
+					caption:     L.tr('Devices'),
 					multiple:    true,
 					bridges:     false
 				}).depends('type', true);
 
-				section.taboption('physical', _luci2.cbi.DeviceList, '__iface_single', {
-					caption:     _luci2.tr('Device'),
+				section.taboption('physical', L.cbi.DeviceList, '__iface_single', {
+					caption:     L.tr('Device'),
 					multiple:    false,
 					bridges:     true
 				}).depends('type', false);
 
-				var mac = section.taboption('physical', _luci2.cbi.InputValue, 'macaddr', {
-					caption:     _luci2.tr('Override MAC'),
+				var mac = section.taboption('physical', L.cbi.InputValue, 'macaddr', {
+					caption:     L.tr('Override MAC'),
 					optional:    true,
 					placeholder: device ? device.getMACAddress() : undefined,
 					datatype:    'macaddr'
@@ -2719,15 +2719,15 @@ function LuCI2()
 				};
 			}
 
-			section.taboption('physical', _luci2.cbi.InputValue, 'mtu', {
-				caption:     _luci2.tr('Override MTU'),
+			section.taboption('physical', L.cbi.InputValue, 'mtu', {
+				caption:     L.tr('Override MTU'),
 				optional:    true,
 				placeholder: device ? device.getMTU() : undefined,
 				datatype:    'range(1, 9000)'
 			});
 
-			section.taboption('physical', _luci2.cbi.InputValue, 'metric', {
-				caption:     _luci2.tr('Override Metric'),
+			section.taboption('physical', L.cbi.InputValue, 'metric', {
+				caption:     L.tr('Override Metric'),
 				optional:    true,
 				placeholder: 0,
 				datatype:    'uinteger'
@@ -2768,19 +2768,19 @@ function LuCI2()
 	});
 
 	this.system = {
-		getSystemInfo: _luci2.rpc.declare({
+		getSystemInfo: L.rpc.declare({
 			object: 'system',
 			method: 'info',
 			expect: { '': { } }
 		}),
 
-		getBoardInfo: _luci2.rpc.declare({
+		getBoardInfo: L.rpc.declare({
 			object: 'system',
 			method: 'board',
 			expect: { '': { } }
 		}),
 
-		getDiskInfo: _luci2.rpc.declare({
+		getDiskInfo: L.rpc.declare({
 			object: 'luci2.system',
 			method: 'diskfree',
 			expect: { '': { } }
@@ -2788,13 +2788,13 @@ function LuCI2()
 
 		getInfo: function(cb)
 		{
-			_luci2.rpc.batch();
+			L.rpc.batch();
 
 			this.getSystemInfo();
 			this.getBoardInfo();
 			this.getDiskInfo();
 
-			return _luci2.rpc.flush().then(function(info) {
+			return L.rpc.flush().then(function(info) {
 				var rv = { };
 
 				$.extend(rv, info[0]);
@@ -2806,7 +2806,7 @@ function LuCI2()
 		},
 
 
-		initList: _luci2.rpc.declare({
+		initList: L.rpc.declare({
 			object: 'luci2.system',
 			method: 'init_list',
 			expect: { initscripts: [ ] },
@@ -2827,7 +2827,7 @@ function LuCI2()
 			});
 		},
 
-		initRun: _luci2.rpc.declare({
+		initRun: L.rpc.declare({
 			object: 'luci2.system',
 			method: 'init_action',
 			params: [ 'name', 'action' ],
@@ -2836,15 +2836,15 @@ function LuCI2()
 			}
 		}),
 
-		initStart:   function(init, cb) { return _luci2.system.initRun(init, 'start',   cb) },
-		initStop:    function(init, cb) { return _luci2.system.initRun(init, 'stop',    cb) },
-		initRestart: function(init, cb) { return _luci2.system.initRun(init, 'restart', cb) },
-		initReload:  function(init, cb) { return _luci2.system.initRun(init, 'reload',  cb) },
-		initEnable:  function(init, cb) { return _luci2.system.initRun(init, 'enable',  cb) },
-		initDisable: function(init, cb) { return _luci2.system.initRun(init, 'disable', cb) },
+		initStart:   function(init, cb) { return L.system.initRun(init, 'start',   cb) },
+		initStop:    function(init, cb) { return L.system.initRun(init, 'stop',    cb) },
+		initRestart: function(init, cb) { return L.system.initRun(init, 'restart', cb) },
+		initReload:  function(init, cb) { return L.system.initRun(init, 'reload',  cb) },
+		initEnable:  function(init, cb) { return L.system.initRun(init, 'enable',  cb) },
+		initDisable: function(init, cb) { return L.system.initRun(init, 'disable', cb) },
 
 
-		performReboot: _luci2.rpc.declare({
+		performReboot: L.rpc.declare({
 			object: 'luci2.system',
 			method: 'reboot'
 		})
@@ -2852,14 +2852,14 @@ function LuCI2()
 
 	this.session = {
 
-		login: _luci2.rpc.declare({
+		login: L.rpc.declare({
 			object: 'session',
 			method: 'login',
 			params: [ 'username', 'password' ],
 			expect: { '': { } }
 		}),
 
-		access: _luci2.rpc.declare({
+		access: L.rpc.declare({
 			object: 'session',
 			method: 'access',
 			params: [ 'scope', 'object', 'function' ],
@@ -2868,21 +2868,21 @@ function LuCI2()
 
 		isAlive: function()
 		{
-			return _luci2.session.access('ubus', 'session', 'access');
+			return L.session.access('ubus', 'session', 'access');
 		},
 
 		startHeartbeat: function()
 		{
 			this._hearbeatInterval = window.setInterval(function() {
-				_luci2.session.isAlive().then(function(alive) {
+				L.session.isAlive().then(function(alive) {
 					if (!alive)
 					{
-						_luci2.session.stopHeartbeat();
-						_luci2.ui.login(true);
+						L.session.stopHeartbeat();
+						L.ui.login(true);
 					}
 
 				});
-			}, _luci2.globals.timeout * 2);
+			}, L.globals.timeout * 2);
 		},
 
 		stopHeartbeat: function()
@@ -2897,7 +2897,7 @@ function LuCI2()
 
 		_acls: { },
 
-		_fetch_acls: _luci2.rpc.declare({
+		_fetch_acls: L.rpc.declare({
 			object: 'session',
 			method: 'access',
 			expect: { '': { } }
@@ -2905,18 +2905,18 @@ function LuCI2()
 
 		_fetch_acls_cb: function(acls)
 		{
-			_luci2.session._acls = acls;
+			L.session._acls = acls;
 		},
 
 		updateACLs: function()
 		{
-			return _luci2.session._fetch_acls()
-				.then(_luci2.session._fetch_acls_cb);
+			return L.session._fetch_acls()
+				.then(L.session._fetch_acls_cb);
 		},
 
 		hasACL: function(scope, object, func)
 		{
-			var acls = _luci2.session._acls;
+			var acls = L.session._acls;
 
 			if (typeof(func) == 'undefined')
 				return (acls && acls[scope] && acls[scope][object]);
@@ -2952,7 +2952,7 @@ function LuCI2()
 			var win = $(window);
 			var body = $('body');
 
-			var state = _luci2.ui._loading || (_luci2.ui._loading = {
+			var state = L.ui._loading || (L.ui._loading = {
 				modal: $('<div />')
 					.css('z-index', 2000)
 					.addClass('modal fade')
@@ -2962,7 +2962,7 @@ function LuCI2()
 							.addClass('modal-content luci2-modal-loader')
 							.append($('<div />')
 								.addClass('modal-body')
-								.text(_luci2.tr('Loading data…')))))
+								.text(L.tr('Loading data…')))))
 					.appendTo(body)
 					.modal({
 						backdrop: 'static',
@@ -2978,7 +2978,7 @@ function LuCI2()
 			var win = $(window);
 			var body = $('body');
 
-			var state = _luci2.ui._dialog || (_luci2.ui._dialog = {
+			var state = L.ui._dialog || (L.ui._dialog = {
 				dialog: $('<div />')
 					.addClass('modal fade')
 					.append($('<div />')
@@ -2993,7 +2993,7 @@ function LuCI2()
 								.addClass('modal-body'))
 							.append($('<div />')
 								.addClass('modal-footer')
-								.append(_luci2.ui.button(_luci2.tr('Close'), 'primary')
+								.append(L.ui.button(L.tr('Close'), 'primary')
 									.click(function() {
 										$(this).parents('div.modal').modal('hide');
 									})))))
@@ -3017,20 +3017,20 @@ function LuCI2()
 
 			if (options.style == 'confirm')
 			{
-				ftr.append(_luci2.ui.button(_luci2.tr('Ok'), 'primary')
-					.click(options.confirm || function() { _luci2.ui.dialog(false) }));
+				ftr.append(L.ui.button(L.tr('Ok'), 'primary')
+					.click(options.confirm || function() { L.ui.dialog(false) }));
 
-				ftr.append(_luci2.ui.button(_luci2.tr('Cancel'), 'default')
-					.click(options.cancel || function() { _luci2.ui.dialog(false) }));
+				ftr.append(L.ui.button(L.tr('Cancel'), 'default')
+					.click(options.cancel || function() { L.ui.dialog(false) }));
 			}
 			else if (options.style == 'close')
 			{
-				ftr.append(_luci2.ui.button(_luci2.tr('Close'), 'primary')
-					.click(options.close || function() { _luci2.ui.dialog(false) }));
+				ftr.append(L.ui.button(L.tr('Close'), 'primary')
+					.click(options.close || function() { L.ui.dialog(false) }));
 			}
 			else if (options.style == 'wait')
 			{
-				ftr.append(_luci2.ui.button(_luci2.tr('Close'), 'primary')
+				ftr.append(L.ui.button(L.tr('Close'), 'primary')
 					.attr('disabled', true));
 			}
 
@@ -3053,7 +3053,7 @@ function LuCI2()
 
 		upload: function(title, content, options)
 		{
-			var state = _luci2.ui._upload || (_luci2.ui._upload = {
+			var state = L.ui._upload || (L.ui._upload = {
 				form: $('<form />')
 					.attr('method', 'post')
 					.attr('action', '/cgi-bin/luci-upload')
@@ -3095,17 +3095,17 @@ function LuCI2()
 						json = $.parseJSON(body.innerHTML);
 					} catch(e) {
 						json = {
-							message: _luci2.tr('Invalid server response received'),
-							error: [ -1, _luci2.tr('Invalid data') ]
+							message: L.tr('Invalid server response received'),
+							error: [ -1, L.tr('Invalid data') ]
 						};
 					};
 
 					if (json.error)
 					{
 						L.ui.dialog(L.tr('File upload'), [
-							$('<p />').text(_luci2.tr('The file upload failed with the server response below:')),
+							$('<p />').text(L.tr('The file upload failed with the server response below:')),
 							$('<pre />').addClass('alert-message').text(json.message || json.error[1]),
-							$('<p />').text(_luci2.tr('In case of network problems try uploading the file again.'))
+							$('<p />').text(L.tr('In case of network problems try uploading the file again.'))
 						], { style: 'close' });
 					}
 					else if (typeof(state.success_cb) == 'function')
@@ -3127,7 +3127,7 @@ function LuCI2()
 
 					f.hide();
 					b.show();
-					p.text(_luci2.tr('File upload in progress …'));
+					p.text(L.tr('File upload in progress …'));
 
 					state.form.parent().parent().find('button').prop('disabled', true);
 				}
@@ -3135,14 +3135,14 @@ function LuCI2()
 
 			state.form.find('.progress').hide();
 			state.form.find('.cbi-input-file').val('').show();
-			state.form.find('p').text(content || _luci2.tr('Select the file to upload and press "%s" to proceed.').format(_luci2.tr('Ok')));
+			state.form.find('p').text(content || L.tr('Select the file to upload and press "%s" to proceed.').format(L.tr('Ok')));
 
-			state.form.find('[name=sessionid]').val(_luci2.globals.sid);
+			state.form.find('[name=sessionid]').val(L.globals.sid);
 			state.form.find('[name=filename]').val(options.filename);
 
 			state.success_cb = options.success;
 
-			_luci2.ui.dialog(title || _luci2.tr('File upload'), state.form, {
+			L.ui.dialog(title || L.tr('File upload'), state.form, {
 				style: 'confirm',
 				confirm: state.confirm_cb
 			});
@@ -3156,9 +3156,9 @@ function LuCI2()
 			var images    = $();
 			var interval, timeout;
 
-			_luci2.ui.dialog(
-				_luci2.tr('Waiting for device'), [
-					$('<p />').text(_luci2.tr('Please stand by while the device is reconfiguring …')),
+			L.ui.dialog(
+				L.tr('Waiting for device'), [
+					$('<p />').text(L.tr('Please stand by while the device is reconfiguring …')),
 					$('<div />')
 						.css('width', '100%')
 						.addClass('progressbar')
@@ -3171,7 +3171,7 @@ function LuCI2()
 			for (var i = 0; i < protocols.length; i++)
 				images = images.add($('<img />').attr('url', protocols[i] + '://' + address + ':' + ports[i]));
 
-			//_luci2.network.getNetworkStatus(function(s) {
+			//L.network.getNetworkStatus(function(s) {
 			//	for (var i = 0; i < protocols.length; i++)
 			//	{
 			//		for (var j = 0; j < s.length; j++)
@@ -3186,12 +3186,12 @@ function LuCI2()
 			//}).then(function() {
 				images.on('load', function() {
 					var url = this.getAttribute('url');
-					_luci2.session.isAlive().then(function(access) {
+					L.session.isAlive().then(function(access) {
 						if (access)
 						{
 							window.clearTimeout(timeout);
 							window.clearInterval(interval);
-							_luci2.ui.dialog(false);
+							L.ui.dialog(false);
 							images = null;
 						}
 						else
@@ -3203,7 +3203,7 @@ function LuCI2()
 
 				interval = window.setInterval(function() {
 					images.each(function() {
-						this.setAttribute('src', this.getAttribute('url') + _luci2.globals.resource + '/icons/loading.gif?r=' + Math.random());
+						this.setAttribute('src', this.getAttribute('url') + L.globals.resource + '/icons/loading.gif?r=' + Math.random());
 					});
 				}, 5000);
 
@@ -3211,9 +3211,9 @@ function LuCI2()
 					window.clearInterval(interval);
 					images.off('load');
 
-					_luci2.ui.dialog(
-						_luci2.tr('Device not responding'),
-						_luci2.tr('The device was not responding within 180 seconds, you might need to manually reconnect your computer or use SSH to regain access.'),
+					L.ui.dialog(
+						L.tr('Device not responding'),
+						L.tr('The device was not responding within 180 seconds, you might need to manually reconnect your computer or use SSH to regain access.'),
 						{ style: 'close' }
 					);
 				}, 180000);
@@ -3222,16 +3222,16 @@ function LuCI2()
 
 		login: function(invalid)
 		{
-			var state = _luci2.ui._login || (_luci2.ui._login = {
+			var state = L.ui._login || (L.ui._login = {
 				form: $('<form />')
 					.attr('target', '')
 					.attr('method', 'post')
 					.append($('<p />')
 						.addClass('alert-message')
-						.text(_luci2.tr('Wrong username or password given!')))
+						.text(L.tr('Wrong username or password given!')))
 					.append($('<p />')
 						.append($('<label />')
-							.text(_luci2.tr('Username'))
+							.text(L.tr('Username'))
 							.append($('<br />'))
 							.append($('<input />')
 								.attr('type', 'text')
@@ -3244,7 +3244,7 @@ function LuCI2()
 								}))))
 					.append($('<p />')
 						.append($('<label />')
-							.text(_luci2.tr('Password'))
+							.text(L.tr('Password'))
 							.append($('<br />'))
 							.append($('<input />')
 								.attr('type', 'password')
@@ -3255,19 +3255,19 @@ function LuCI2()
 										state.confirm_cb();
 								}))))
 					.append($('<p />')
-						.text(_luci2.tr('Enter your username and password above, then click "%s" to proceed.').format(_luci2.tr('Ok')))),
+						.text(L.tr('Enter your username and password above, then click "%s" to proceed.').format(L.tr('Ok')))),
 
 				response_cb: function(response) {
 					if (!response.ubus_rpc_session)
 					{
-						_luci2.ui.login(true);
+						L.ui.login(true);
 					}
 					else
 					{
-						_luci2.globals.sid = response.ubus_rpc_session;
-						_luci2.setHash('id', _luci2.globals.sid);
-						_luci2.session.startHeartbeat();
-						_luci2.ui.dialog(false);
+						L.globals.sid = response.ubus_rpc_session;
+						L.setHash('id', L.globals.sid);
+						L.session.startHeartbeat();
+						L.ui.dialog(false);
 						state.deferred.resolve();
 					}
 				},
@@ -3279,9 +3279,9 @@ function LuCI2()
 					if (!u)
 						return;
 
-					_luci2.ui.dialog(
-						_luci2.tr('Logging in'), [
-							$('<p />').text(_luci2.tr('Log in in progress …')),
+					L.ui.dialog(
+						L.tr('Logging in'), [
+							$('<p />').text(L.tr('Log in in progress …')),
 							$('<div />')
 								.css('width', '100%')
 								.addClass('progressbar')
@@ -3291,8 +3291,8 @@ function LuCI2()
 						], { style: 'wait' }
 					);
 
-					_luci2.globals.sid = '00000000000000000000000000000000';
-					_luci2.session.login(u, p).then(state.response_cb);
+					L.globals.sid = '00000000000000000000000000000000';
+					L.session.login(u, p).then(state.response_cb);
 				}
 			});
 
@@ -3300,20 +3300,20 @@ function LuCI2()
 				state.deferred = $.Deferred();
 
 			/* try to find sid from hash */
-			var sid = _luci2.getHash('id');
+			var sid = L.getHash('id');
 			if (sid && sid.match(/^[a-f0-9]{32}$/))
 			{
-				_luci2.globals.sid = sid;
-				_luci2.session.isAlive().then(function(access) {
+				L.globals.sid = sid;
+				L.session.isAlive().then(function(access) {
 					if (access)
 					{
-						_luci2.session.startHeartbeat();
+						L.session.startHeartbeat();
 						state.deferred.resolve();
 					}
 					else
 					{
-						_luci2.setHash('id', undefined);
-						_luci2.ui.login();
+						L.setHash('id', undefined);
+						L.ui.login();
 					}
 				});
 
@@ -3325,7 +3325,7 @@ function LuCI2()
 			else
 				state.form.find('.alert-message').hide();
 
-			_luci2.ui.dialog(_luci2.tr('Authorization Required'), state.form, {
+			L.ui.dialog(L.tr('Authorization Required'), state.form, {
 				style: 'confirm',
 				confirm: state.confirm_cb
 			});
@@ -3335,7 +3335,7 @@ function LuCI2()
 			return state.deferred;
 		},
 
-		cryptPassword: _luci2.rpc.declare({
+		cryptPassword: L.rpc.declare({
 			object: 'luci2.ui',
 			method: 'crypt',
 			params: [ 'data' ],
@@ -3410,14 +3410,14 @@ function LuCI2()
 			}
 		},
 
-		listAvailableACLs: _luci2.rpc.declare({
+		listAvailableACLs: L.rpc.declare({
 			object: 'luci2.ui',
 			method: 'acls',
 			expect: { acls: [ ] },
 			filter: function(trees) {
 				var acl_tree = { };
 				for (var i = 0; i < trees.length; i++)
-					_luci2.ui._acl_merge_tree(acl_tree, trees[i]);
+					L.ui._acl_merge_tree(acl_tree, trees[i]);
 				return acl_tree;
 			}
 		}),
@@ -3434,18 +3434,18 @@ function LuCI2()
 							.addClass('label label-info'))));
 		},
 
-		renderMainMenu: _luci2.rpc.declare({
+		renderMainMenu: L.rpc.declare({
 			object: 'luci2.ui',
 			method: 'menu',
 			expect: { menu: { } },
 			filter: function(entries) {
-				_luci2.globals.mainMenu = new _luci2.ui.menu();
-				_luci2.globals.mainMenu.entries(entries);
+				L.globals.mainMenu = new L.ui.menu();
+				L.globals.mainMenu.entries(entries);
 
 				$('#mainmenu')
 					.empty()
-					.append(_luci2.globals.mainMenu.render(0, 1))
-					.append(_luci2.ui._render_change_indicator());
+					.append(L.globals.mainMenu.render(0, 1))
+					.append(L.ui._render_change_indicator());
 			}
 		}),
 
@@ -3453,33 +3453,33 @@ function LuCI2()
 		{
 			$('#viewmenu')
 				.empty()
-				.append(_luci2.globals.mainMenu.render(2, 900));
+				.append(L.globals.mainMenu.render(2, 900));
 		},
 
 		renderView: function()
 		{
 			var node  = arguments[0];
 			var name  = node.view.split(/\//).join('.');
-			var cname = _luci2.toClassName(name);
-			var views = _luci2.views || (_luci2.views = { });
+			var cname = L.toClassName(name);
+			var views = L.views || (L.views = { });
 			var args  = [ ];
 
 			for (var i = 1; i < arguments.length; i++)
 				args.push(arguments[i]);
 
-			if (_luci2.globals.currentView)
-				_luci2.globals.currentView.finish();
+			if (L.globals.currentView)
+				L.globals.currentView.finish();
 
-			_luci2.ui.renderViewMenu();
-			_luci2.setHash('view', node.view);
+			L.ui.renderViewMenu();
+			L.setHash('view', node.view);
 
-			if (views[cname] instanceof _luci2.ui.view)
+			if (views[cname] instanceof L.ui.view)
 			{
-				_luci2.globals.currentView = views[cname];
+				L.globals.currentView = views[cname];
 				return views[cname].render.apply(views[cname], args);
 			}
 
-			var url = _luci2.globals.resource + '/view/' + name + '.js';
+			var url = L.globals.resource + '/view/' + name + '.js';
 
 			return $.ajax(url, {
 				method: 'GET',
@@ -3490,7 +3490,7 @@ function LuCI2()
 					var viewConstructorSource = (
 						'(function(L, $) { ' +
 							'return %s' +
-						'})(_luci2, $);\n\n' +
+						'})(L, $);\n\n' +
 						'//@ sourceURL=%s'
 					).format(data, url);
 
@@ -3501,7 +3501,7 @@ function LuCI2()
 						acls: node.write || { }
 					});
 
-					_luci2.globals.currentView = views[cname];
+					L.globals.currentView = views[cname];
 					return views[cname].render.apply(views[cname], args);
 				}
 				catch(e) {
@@ -3514,24 +3514,24 @@ function LuCI2()
 
 		changeView: function()
 		{
-			var name = _luci2.getHash('view');
-			var node = _luci2.globals.defaultNode;
+			var name = L.getHash('view');
+			var node = L.globals.defaultNode;
 
-			if (name && _luci2.globals.mainMenu)
-				node = _luci2.globals.mainMenu.getNode(name);
+			if (name && L.globals.mainMenu)
+				node = L.globals.mainMenu.getNode(name);
 
 			if (node)
 			{
-				_luci2.ui.loading(true);
-				_luci2.ui.renderView(node).then(function() {
-					_luci2.ui.loading(false);
+				L.ui.loading(true);
+				L.ui.renderView(node).then(function() {
+					L.ui.loading(false);
 				});
 			}
 		},
 
 		updateHostname: function()
 		{
-			return _luci2.system.getBoardInfo().then(function(info) {
+			return L.system.getBoardInfo().then(function(info) {
 				if (info.hostname)
 					$('#hostname').text(info.hostname);
 			});
@@ -3539,7 +3539,7 @@ function LuCI2()
 
 		updateChanges: function()
 		{
-			return _luci2.uci.changes().then(function(changes) {
+			return L.uci.changes().then(function(changes) {
 				var n = 0;
 				var html = '';
 
@@ -3599,10 +3599,10 @@ function LuCI2()
 				if (n > 0)
 					$('#changes')
 						.click(function(ev) {
-							_luci2.ui.dialog(_luci2.tr('Staged configuration changes'), html, {
+							L.ui.dialog(L.tr('Staged configuration changes'), html, {
 								style: 'confirm',
 								confirm: function() {
-									_luci2.uci.apply().then(
+									L.uci.apply().then(
 										function(code) { alert('Success with code ' + code); },
 										function(code) { alert('Error with code ' + code); }
 									);
@@ -3612,7 +3612,7 @@ function LuCI2()
 						})
 						.children('span')
 							.show()
-							.text(_luci2.trcp('Pending configuration changes', '1 change', '%d changes', n).format(n));
+							.text(L.trcp('Pending configuration changes', '1 change', '%d changes', n).format(n));
 				else
 					$('#changes').children('span').hide();
 			});
@@ -3620,21 +3620,21 @@ function LuCI2()
 
 		init: function()
 		{
-			_luci2.ui.loading(true);
+			L.ui.loading(true);
 
 			$.when(
-				_luci2.session.updateACLs(),
-				_luci2.ui.updateHostname(),
-				_luci2.ui.updateChanges(),
-				_luci2.ui.renderMainMenu(),
-				_luci2.NetworkModel.init()
+				L.session.updateACLs(),
+				L.ui.updateHostname(),
+				L.ui.updateChanges(),
+				L.ui.renderMainMenu(),
+				L.NetworkModel.init()
 			).then(function() {
-				_luci2.ui.renderView(_luci2.globals.defaultNode).then(function() {
-					_luci2.ui.loading(false);
+				L.ui.renderView(L.globals.defaultNode).then(function() {
+					L.ui.loading(false);
 				});
 
 				$(window).on('hashchange', function() {
-					_luci2.ui.changeView();
+					L.ui.changeView();
 				});
 			});
 		},
@@ -3692,7 +3692,7 @@ function LuCI2()
 	this.ui.view = this.ui.AbstractWidget.extend({
 		_fetch_template: function()
 		{
-			return $.ajax(_luci2.globals.resource + '/template/' + this.options.name + '.htm', {
+			return $.ajax(L.globals.resource + '/template/' + this.options.name + '.htm', {
 				method: 'GET',
 				cache: true,
 				dataType: 'text',
@@ -3705,10 +3705,10 @@ function LuCI2()
 							return '';
 
 						case ':':
-							return _luci2.tr(p2);
+							return L.tr(p2);
 
 						case '=':
-							return _luci2.globals[p2] || '';
+							return L.globals[p2] || '';
 
 						default:
 							return '(?' + match + ')';
@@ -3744,7 +3744,7 @@ function LuCI2()
 				args.push(arguments[i]);
 
 			return this._fetch_template().then(function() {
-				return _luci2.deferrable(self.execute.apply(self, args));
+				return L.deferrable(self.execute.apply(self, args));
 			});
 		},
 
@@ -3768,7 +3768,7 @@ function LuCI2()
 			};
 
 			runTimer = function() {
-				_luci2.deferrable(func.call(self)).then(setTimer, setTimer);
+				L.deferrable(func.call(self)).then(setTimer, setTimer);
 			};
 
 			runTimer();
@@ -3849,7 +3849,7 @@ function LuCI2()
 
 		_onclick: function(ev)
 		{
-			_luci2.setHash('view', ev.data);
+			L.setHash('view', ev.data);
 
 			ev.preventDefault();
 			this.blur();
@@ -3876,17 +3876,17 @@ function LuCI2()
 
 			for (var i = 0; i < nodes.length; i++)
 			{
-				if (!_luci2.globals.defaultNode)
+				if (!L.globals.defaultNode)
 				{
-					var v = _luci2.getHash('view');
+					var v = L.getHash('view');
 					if (!v || v == nodes[i].view)
-						_luci2.globals.defaultNode = nodes[i];
+						L.globals.defaultNode = nodes[i];
 				}
 
 				var item = $('<li />')
 					.append($('<a />')
 						.attr('href', '#')
-						.text(_luci2.tr(nodes[i].title)))
+						.text(L.tr(nodes[i].title)))
 					.appendTo(list);
 
 				if (nodes[i].childs && level < max)
@@ -3911,7 +3911,7 @@ function LuCI2()
 
 		render: function(min, max)
 		{
-			var top = min ? this.getNode(_luci2.globals.defaultNode.view, min) : this._nodes;
+			var top = min ? this.getNode(L.globals.defaultNode.view, min) : this._nodes;
 			return this._render(top.childs, 0, min, max);
 		},
 
@@ -4159,46 +4159,46 @@ function LuCI2()
 				}
 
 				span.appendChild(document.createElement('img'));
-				span.lastChild.src = _luci2.globals.resource + '/icons/signal-' + r + '.png';
+				span.lastChild.src = L.globals.resource + '/icons/signal-' + r + '.png';
 
 				if (r == 'none')
-					span.title = _luci2.tr('No signal');
+					span.title = L.tr('No signal');
 				else
 					span.title = '%s: %d %s / %s: %d %s'.format(
-						_luci2.tr('Signal'), this.options.signal, _luci2.tr('dBm'),
-						_luci2.tr('Noise'), this.options.noise, _luci2.tr('dBm')
+						L.tr('Signal'), this.options.signal, L.tr('dBm'),
+						L.tr('Noise'), this.options.noise, L.tr('dBm')
 					);
 			}
 			else
 			{
 				var type = 'ethernet';
-				var desc = _luci2.tr('Ethernet device');
+				var desc = L.tr('Ethernet device');
 
 				if (l3dev != l2dev)
 				{
 					type = 'tunnel';
-					desc = _luci2.tr('Tunnel interface');
+					desc = L.tr('Tunnel interface');
 				}
 				else if (dev.indexOf('br-') == 0)
 				{
 					type = 'bridge';
-					desc = _luci2.tr('Bridge');
+					desc = L.tr('Bridge');
 				}
 				else if (dev.indexOf('.') > 0)
 				{
 					type = 'vlan';
-					desc = _luci2.tr('VLAN interface');
+					desc = L.tr('VLAN interface');
 				}
 				else if (dev.indexOf('wlan') == 0 ||
 						 dev.indexOf('ath') == 0 ||
 						 dev.indexOf('wl') == 0)
 				{
 					type = 'wifi';
-					desc = _luci2.tr('Wireless Network');
+					desc = L.tr('Wireless Network');
 				}
 
 				span.appendChild(document.createElement('img'));
-				span.lastChild.src = _luci2.globals.resource + '/icons/' + type + (this.options.up ? '' : '_disabled') + '.png';
+				span.lastChild.src = L.globals.resource + '/icons/' + type + (this.options.up ? '' : '_disabled') + '.png';
 				span.title = desc;
 			}
 
@@ -4219,7 +4219,7 @@ function LuCI2()
 		validation: {
 			i18n: function(msg)
 			{
-				_luci2.cbi.validation.message = _luci2.tr(msg);
+				L.cbi.validation.message = L.tr(msg);
 			},
 
 			compile: function(code)
@@ -4227,7 +4227,7 @@ function LuCI2()
 				var pos = 0;
 				var esc = false;
 				var depth = 0;
-				var types = _luci2.cbi.validation.types;
+				var types = L.cbi.validation.types;
 				var stack = [ ];
 
 				code += ',';
@@ -4287,7 +4287,7 @@ function LuCI2()
 								throw "Syntax error, argument list follows non-function";
 
 							stack[stack.length-1] =
-								_luci2.cbi.validation.compile(code.substring(pos, i));
+								L.cbi.validation.compile(code.substring(pos, i));
 
 							pos = i+1;
 						}
@@ -4631,7 +4631,7 @@ function LuCI2()
 					msgs.push(validation.message.format.apply(validation.message, arguments[i+1]));
 			}
 
-			validation.message = msgs.join( _luci2.tr(' - or - '));
+			validation.message = msgs.join( L.tr(' - or - '));
 			return false;
 		},
 
@@ -4706,7 +4706,7 @@ function LuCI2()
 			this.rdependency = { };
 			this.events = { };
 
-			this.options = _luci2.defaults(options, {
+			this.options = L.defaults(options, {
 				placeholder: '',
 				datatype: 'string',
 				optional: false,
@@ -4811,9 +4811,9 @@ function LuCI2()
 						return this.choices[i][1];
 			}
 			else if (v === true)
-				return _luci2.tr('yes');
+				return L.tr('yes');
 			else if (v === false)
-				return _luci2.tr('no');
+				return L.tr('no');
 			else if ($.isArray(v))
 				return v.join(', ');
 
@@ -4880,7 +4880,7 @@ function LuCI2()
 					d.elem.parents('div.form-group, td').first().addClass('luci2-form-error');
 					d.elem.parents('div.input-group, div.form-group, td').first().addClass('has-error');
 
-					d.inst.error.text(_luci2.tr('Field must not be empty')).show();
+					d.inst.error.text(L.tr('Field must not be empty')).show();
 					rv = false;
 				}
 				else if (val.length > 0 && !vstack[0].apply(val, vstack[1]))
@@ -4935,7 +4935,7 @@ function LuCI2()
 			if (typeof(this.options.datatype) == 'string')
 			{
 				try {
-					evdata.vstack = _luci2.cbi.validation.compile(this.options.datatype);
+					evdata.vstack = L.cbi.validation.compile(this.options.datatype);
 				} catch(e) { };
 			}
 			else if (typeof(this.options.datatype) == 'function')
@@ -4989,11 +4989,11 @@ function LuCI2()
 				{
 					if (typeof(d[i]) == 'string')
 						dep[d[i]] = true;
-					else if (d[i] instanceof _luci2.cbi.AbstractValue)
+					else if (d[i] instanceof L.cbi.AbstractValue)
 						dep[d[i].name] = true;
 				}
 			}
-			else if (d instanceof _luci2.cbi.AbstractValue)
+			else if (d instanceof L.cbi.AbstractValue)
 			{
 				dep = { };
 				dep[d.name] = (typeof(v) == 'undefined') ? true : v;
@@ -5202,12 +5202,12 @@ function LuCI2()
 
 			var t = $('<span />')
 				.addClass('input-group-btn')
-				.append(_luci2.ui.button(_luci2.tr('Reveal'), 'default')
+				.append(L.ui.button(L.tr('Reveal'), 'default')
 					.click(function(ev) {
 						var b = $(this);
 						var i = b.parent().prev();
 						var t = i.attr('type');
-						b.text(t == 'password' ? _luci2.tr('Hide') : _luci2.tr('Reveal'));
+						b.text(t == 'password' ? L.tr('Hide') : L.tr('Reveal'));
 						i.attr('type', (t == 'password') ? 'text' : 'password');
 						b = i = t = null;
 					}));
@@ -5230,7 +5230,7 @@ function LuCI2()
 			if (this.options.optional && !this.has_empty)
 				$('<option />')
 					.attr('value', '')
-					.text(_luci2.tr('-- Please choose --'))
+					.text(L.tr('-- Please choose --'))
 					.appendTo(s);
 
 			if (this.choices)
@@ -5352,7 +5352,7 @@ function LuCI2()
 			if (self.options.optional && !self.has_empty)
 				$('<option />')
 					.attr('value', '')
-					.text(_luci2.tr('-- please choose --'))
+					.text(L.tr('-- please choose --'))
 					.appendTo(ev.data.select);
 
 			if (self.choices)
@@ -5375,7 +5375,7 @@ function LuCI2()
 
 			$('<option />')
 				.attr('value', ' ')
-				.text(_luci2.tr('-- custom --'))
+				.text(L.tr('-- custom --'))
 				.appendTo(ev.data.select);
 
 			ev.data.input.hide();
@@ -5481,9 +5481,9 @@ function LuCI2()
 
 				var btn;
 				if (evdata.remove)
-					btn = _luci2.ui.button('–', 'danger').click(evdata, this._btnclick);
+					btn = L.ui.button('–', 'danger').click(evdata, this._btnclick);
 				else
-					btn = _luci2.ui.button('+', 'success').click(evdata, this._btnclick);
+					btn = L.ui.button('+', 'success').click(evdata, this._btnclick);
 
 				if (this.choices)
 				{
@@ -5738,7 +5738,7 @@ function LuCI2()
 	this.cbi.NetworkList = this.cbi.AbstractValue.extend({
 		load: function(sid)
 		{
-			return _luci2.NetworkModel.init();
+			return L.NetworkModel.init();
 		},
 
 		_device_icon: function(dev)
@@ -5765,7 +5765,7 @@ function LuCI2()
 				for (var i = 0; i < value.length; i++)
 					check[value[i]] = true;
 
-			var interfaces = _luci2.NetworkModel.getInterfaces();
+			var interfaces = L.NetworkModel.getInterfaces();
 
 			for (var i = 0; i < interfaces.length; i++)
 			{
@@ -5783,7 +5783,7 @@ function LuCI2()
 				else if (dev)
 					badge.append(this._device_icon(dev));
 				else
-					badge.append($('<em />').text(_luci2.tr('(No devices attached)')));
+					badge.append($('<em />').text(L.tr('(No devices attached)')));
 
 				$('<li />')
 					.append($('<label />')
@@ -5807,7 +5807,7 @@ function LuCI2()
 							.attr('type', itype)
 							.attr('value', '')
 							.prop('checked', $.isEmptyObject(check)))
-						.append(_luci2.tr('unspecified')))
+						.append(L.tr('unspecified')))
 					.appendTo(ul);
 			}
 
@@ -5887,26 +5887,26 @@ function LuCI2()
 			var sid = ev.data.sid;
 			var self = ev.data.self;
 			var input = $(this);
-			var ifnames = _luci2.toArray(input.val());
+			var ifnames = L.toArray(input.val());
 
 			if (!ifnames.length)
 				return;
 
-			_luci2.NetworkModel.createDevice(ifnames[0]);
+			L.NetworkModel.createDevice(ifnames[0]);
 
 			self._redraw(sid, $('#' + self.id(sid)), ifnames[0]);
 		},
 
 		load: function(sid)
 		{
-			return _luci2.NetworkModel.init();
+			return L.NetworkModel.init();
 		},
 
 		_redraw: function(sid, ul, sel)
 		{
 			var id = ul.attr('id');
-			var devs = _luci2.NetworkModel.getDevices();
-			var iface = _luci2.NetworkModel.getInterface(sid);
+			var devs = L.NetworkModel.getDevices();
+			var iface = L.NetworkModel.getInterface(sid);
 			var itype = this.options.multiple ? 'checkbox' : 'radio';
 			var check = { };
 
@@ -5919,7 +5919,7 @@ function LuCI2()
 			else
 			{
 				if (this.options.multiple)
-					check = _luci2.toObject(this.formvalue(sid));
+					check = L.toObject(this.formvalue(sid));
 
 				check[sel] = true;
 			}
@@ -5976,7 +5976,7 @@ function LuCI2()
 						.append($('<input />')
 							.attr('id', 'custom' + id)
 							.attr('type', 'text')
-							.attr('placeholder', _luci2.tr('Custom device …'))
+							.attr('placeholder', L.tr('Custom device …'))
 							.on('focus', { self: this, sid: sid }, this._ev_focus)
 							.on('blur', { self: this, sid: sid }, this._ev_blur)
 							.on('keydown', { self: this, sid: sid }, this._ev_keydown))))
@@ -5992,7 +5992,7 @@ function LuCI2()
 							.attr('type', itype)
 							.attr('value', '')
 							.prop('checked', $.isEmptyObject(check)))
-						.append(_luci2.tr('unspecified')))
+						.append(L.tr('unspecified')))
 					.appendTo(ul);
 			}
 		},
@@ -6018,7 +6018,7 @@ function LuCI2()
 			//if (!ifnames)
 			//	return;
 
-			var iface = _luci2.NetworkModel.getInterface(sid);
+			var iface = L.NetworkModel.getInterface(sid);
 			if (!iface)
 				return;
 
@@ -6077,7 +6077,7 @@ function LuCI2()
 
 			var w = widget ? new widget(name, options) : null;
 
-			if (!(w instanceof _luci2.cbi.AbstractValue))
+			if (!(w instanceof L.cbi.AbstractValue))
 				throw 'Widget must be an instance of AbstractValue';
 
 			w.section = this;
@@ -6159,7 +6159,7 @@ function LuCI2()
 				if (inval > 0)
 					stbadge.show()
 						.text(inval)
-						.attr('title', _luci2.trp('1 Error', '%d Errors', inval).format(inval));
+						.attr('title', L.trp('1 Error', '%d Errors', inval).format(inval));
 				else
 					stbadge.hide();
 
@@ -6169,7 +6169,7 @@ function LuCI2()
 			if (invals > 0)
 				badge.show()
 					.text(invals)
-					.attr('title', _luci2.trp('1 Error', '%d Errors', invals).format(invals));
+					.attr('title', L.trp('1 Error', '%d Errors', invals).format(invals));
 			else
 				badge.hide();
 
@@ -6194,7 +6194,7 @@ function LuCI2()
 			if (errors > 0)
 				badge.show()
 					.text(errors)
-					.attr('title', _luci2.trp('1 Error', '%d Errors', errors).format(errors));
+					.attr('title', L.trp('1 Error', '%d Errors', errors).format(errors));
 			else
 				badge.hide();
 
@@ -6220,7 +6220,7 @@ function LuCI2()
 
 		sections: function(cb)
 		{
-			var s1 = _luci2.uci.sections(this.map.uci_package);
+			var s1 = L.uci.sections(this.map.uci_package);
 			var s2 = [ ];
 
 			for (var i = 0; i < s1.length; i++)
@@ -6257,14 +6257,14 @@ function LuCI2()
 			if (addb.prop('disabled') || name === '')
 				return;
 
-			_luci2.ui.saveScrollTop();
+			L.ui.saveScrollTop();
 
 			self.active_panel = -1;
 			self.map.save();
 			self.add(name);
 			self.map.redraw();
 
-			_luci2.ui.restoreScrollTop();
+			L.ui.restoreScrollTop();
 		},
 
 		_ev_remove: function(ev)
@@ -6272,13 +6272,13 @@ function LuCI2()
 			var self = ev.data.self;
 			var sid  = ev.data.sid;
 
-			_luci2.ui.saveScrollTop();
+			L.ui.saveScrollTop();
 
 			self.map.save();
 			self.remove(sid);
 			self.map.redraw();
 
-			_luci2.ui.restoreScrollTop();
+			L.ui.restoreScrollTop();
 
 			ev.stopPropagation();
 		},
@@ -6293,15 +6293,15 @@ function LuCI2()
 
 			if (!/^[a-zA-Z0-9_]*$/.test(name))
 			{
-				errt.text(_luci2.tr('Invalid section name')).show();
+				errt.text(L.tr('Invalid section name')).show();
 				text.addClass('error');
 				addb.prop('disabled', true);
 				return false;
 			}
 
-			if (_luci2.uci.get(self.map.uci_package, name))
+			if (L.uci.get(self.map.uci_package, name))
 			{
-				errt.text(_luci2.tr('Name already used')).show();
+				errt.text(L.tr('Name already used')).show();
 				text.addClass('error');
 				addb.prop('disabled', true);
 				return false;
@@ -6368,7 +6368,7 @@ function LuCI2()
 
 			if (new_idx >= 0 && new_idx < s.length)
 			{
-				_luci2.uci.swap(self.map.uci_package, s[cur_idx]['.name'], s[new_idx]['.name']);
+				L.uci.swap(self.map.uci_package, s[cur_idx]['.name'], s[new_idx]['.name']);
 
 				self.map.save();
 				self.map.redraw();
@@ -6390,9 +6390,9 @@ function LuCI2()
 					for (var i = 0; i < this.options.teasers.length; i++)
 					{
 						var f = this.options.teasers[i];
-						if (f instanceof _luci2.cbi.AbstractValue)
+						if (f instanceof L.cbi.AbstractValue)
 							tf.push(f);
-						else if (typeof(f) == 'string' && this.fields[f] instanceof _luci2.cbi.AbstractValue)
+						else if (typeof(f) == 'string' && this.fields[f] instanceof L.cbi.AbstractValue)
 							tf.push(this.fields[f]);
 					}
 				}
@@ -6428,8 +6428,8 @@ function LuCI2()
 			if (!this.options.addremove)
 				return null;
 
-			var text = _luci2.tr('Add section');
-			var ttip = _luci2.tr('Create new section...');
+			var text = L.tr('Add section');
+			var ttip = L.tr('Create new section...');
 
 			if ($.isArray(this.options.add_caption))
 				text = this.options.add_caption[0], ttip = this.options.add_caption[1];
@@ -6449,7 +6449,7 @@ function LuCI2()
 					.appendTo(add);
 
 				$('<img />')
-					.attr('src', _luci2.globals.resource + '/icons/cbi/add.gif')
+					.attr('src', L.globals.resource + '/icons/cbi/add.gif')
 					.attr('title', text)
 					.addClass('cbi-button')
 					.click({ self: this }, this._ev_add)
@@ -6462,7 +6462,7 @@ function LuCI2()
 			}
 			else
 			{
-				_luci2.ui.button(text, 'success', ttip)
+				L.ui.button(text, 'success', ttip)
 					.click({ self: this }, this._ev_add)
 					.appendTo(add);
 			}
@@ -6475,15 +6475,15 @@ function LuCI2()
 			if (!this.options.addremove)
 				return null;
 
-			var text = _luci2.tr('Remove');
-			var ttip = _luci2.tr('Remove this section');
+			var text = L.tr('Remove');
+			var ttip = L.tr('Remove this section');
 
 			if ($.isArray(this.options.remove_caption))
 				text = this.options.remove_caption[0], ttip = this.options.remove_caption[1];
 			else if (typeof(this.options.remove_caption) == 'string')
 				text = this.options.remove_caption, ttip = '';
 
-			return _luci2.ui.button(text, 'danger', ttip)
+			return L.ui.button(text, 'danger', ttip)
 				.click({ self: this, sid: sid, index: index }, this._ev_remove);
 		},
 
@@ -6492,10 +6492,10 @@ function LuCI2()
 			if (!this.options.sortable)
 				return null;
 
-			var b1 = _luci2.ui.button('↑', 'info', _luci2.tr('Move up'))
+			var b1 = L.ui.button('↑', 'info', L.tr('Move up'))
 				.click({ self: this, index: index, up: true }, this._ev_sort);
 
-			var b2 = _luci2.ui.button('↓', 'info', _luci2.tr('Move down'))
+			var b2 = L.ui.button('↓', 'info', L.tr('Move down'))
 				.click({ self: this, index: index, up: false }, this._ev_sort);
 
 			return b1.add(b2);
@@ -6684,7 +6684,7 @@ function LuCI2()
 			{
 				body.append($('<li />')
 					.addClass('list-group-item text-muted')
-					.text(this.label('placeholder') || _luci2.tr('There are no entries defined yet.')))
+					.text(this.label('placeholder') || L.tr('There are no entries defined yet.')))
 			}
 
 			for (var i = 0; i < s.length; i++)
@@ -6801,7 +6801,7 @@ function LuCI2()
 					.append($('<td />')
 						.addClass('text-muted')
 						.attr('colspan', cols)
-						.text(this.label('placeholder') || _luci2.tr('There are no entries defined yet.'))));
+						.text(this.label('placeholder') || L.tr('There are no entries defined yet.'))));
 			}
 
 			for (var i = 0; i < s.length; i++)
@@ -6828,7 +6828,7 @@ function LuCI2()
 		sections: function(cb)
 		{
 			var sa = [ ];
-			var sl = _luci2.uci.sections(this.map.uci_package);
+			var sl = L.uci.sections(this.map.uci_package);
 
 			for (var i = 0; i < sl.length; i++)
 				if (sl[i]['.name'] == this.uci_type)
@@ -6871,7 +6871,7 @@ function LuCI2()
 
 			this.uci_package = uci_package;
 			this.sections = [ ];
-			this.options = _luci2.defaults(options, {
+			this.options = L.defaults(options, {
 				save:    function() { },
 				prepare: function() { }
 			});
@@ -6879,7 +6879,7 @@ function LuCI2()
 
 		_load_cb: function()
 		{
-			var deferreds = [ _luci2.deferrable(this.options.prepare()) ];
+			var deferreds = [ L.deferrable(this.options.prepare()) ];
 
 			for (var i = 0; i < this.sections.length; i++)
 			{
@@ -6892,7 +6892,7 @@ function LuCI2()
 					for (var j = 0; j < s.length; j++)
 					{
 						var rv = this.sections[i].fields[f].load(s[j]['.name']);
-						if (_luci2.isDeferred(rv))
+						if (L.isDeferred(rv))
 							deferreds.push(rv);
 					}
 				}
@@ -6912,10 +6912,10 @@ function LuCI2()
 			packages[this.uci_package] = true;
 
 			for (var pkg in packages)
-				if (!_luci2.uci.writable(pkg))
+				if (!L.uci.writable(pkg))
 					this.options.readonly = true;
 
-			return _luci2.uci.load(_luci2.toArray(packages)).then(function() {
+			return L.uci.load(L.toArray(packages)).then(function() {
 				return self._load_cb();
 			});
 		},
@@ -7006,11 +7006,11 @@ function LuCI2()
 				.addClass('panel panel-default panel-body text-right')
 				.append($('<div />')
 					.addClass('btn-group')
-					.append(_luci2.ui.button(_luci2.tr('Save & Apply'), 'primary')
+					.append(L.ui.button(L.tr('Save & Apply'), 'primary')
 						.click({ self: this }, function(ev) {  }))
-					.append(_luci2.ui.button(_luci2.tr('Save'), 'default')
+					.append(L.ui.button(L.tr('Save'), 'default')
 						.click({ self: this }, function(ev) { ev.data.self.send(); }))
-					.append(_luci2.ui.button(_luci2.tr('Reset'), 'default')
+					.append(L.ui.button(L.tr('Reset'), 'default')
 						.click({ self: this }, function(ev) { ev.data.self.insertInto(ev.data.self.target); })));
 		},
 
@@ -7053,7 +7053,7 @@ function LuCI2()
 		{
 			var w = widget ? new widget(uci_type, options) : null;
 
-			if (!(w instanceof _luci2.cbi.AbstractSection))
+			if (!(w instanceof L.cbi.AbstractSection))
 				throw 'Widget must be an instance of AbstractSection';
 
 			w.map = this;
@@ -7082,22 +7082,22 @@ function LuCI2()
 
 		add: function(conf, type, name)
 		{
-			return _luci2.uci.add(conf, type, name);
+			return L.uci.add(conf, type, name);
 		},
 
 		remove: function(conf, sid)
 		{
-			return _luci2.uci.remove(conf, sid);
+			return L.uci.remove(conf, sid);
 		},
 
 		get: function(conf, sid, opt)
 		{
-			return _luci2.uci.get(conf, sid, opt);
+			return L.uci.get(conf, sid, opt);
 		},
 
 		set: function(conf, sid, opt, val)
 		{
-			return _luci2.uci.set(conf, sid, opt, val);
+			return L.uci.set(conf, sid, opt, val);
 		},
 
 		validate: function()
@@ -7118,7 +7118,7 @@ function LuCI2()
 			var self = this;
 
 			if (self.options.readonly)
-				return _luci2.deferrable();
+				return L.deferrable();
 
 			var deferreds = [ ];
 
@@ -7136,39 +7136,39 @@ function LuCI2()
 					for (var j = 0; j < s.length; j++)
 					{
 						var rv = self.sections[i].fields[f].save(s[j]['.name']);
-						if (_luci2.isDeferred(rv))
+						if (L.isDeferred(rv))
 							deferreds.push(rv);
 					}
 				}
 			}
 
 			return $.when.apply($, deferreds).then(function() {
-				return _luci2.deferrable(self.options.save());
+				return L.deferrable(self.options.save());
 			});
 		},
 
 		send: function()
 		{
 			if (!this.validate())
-				return _luci2.deferrable();
+				return L.deferrable();
 
 			var self = this;
 
-			_luci2.ui.saveScrollTop();
-			_luci2.ui.loading(true);
+			L.ui.saveScrollTop();
+			L.ui.loading(true);
 
 			return this.save().then(function() {
-				return _luci2.uci.save();
+				return L.uci.save();
 			}).then(function() {
-				return _luci2.ui.updateChanges();
+				return L.ui.updateChanges();
 			}).then(function() {
 				return self.load();
 			}).then(function() {
 				self.redraw();
 				self = null;
 
-				_luci2.ui.loading(false);
-				_luci2.ui.restoreScrollTop();
+				L.ui.loading(false);
+				L.ui.restoreScrollTop();
 			});
 		},
 
@@ -7177,7 +7177,7 @@ function LuCI2()
 			var self = this;
 			    self.target = $(id);
 
-			_luci2.ui.loading(true);
+			L.ui.loading(true);
 			self.target.hide();
 
 			return self.load().then(function() {
@@ -7185,7 +7185,7 @@ function LuCI2()
 				self.finish();
 				self.target.show();
 				self = null;
-				_luci2.ui.loading(false);
+				L.ui.loading(false);
 			});
 		}
 	});
@@ -7195,17 +7195,17 @@ function LuCI2()
 		{
 			return $('<div />')
 				.addClass('btn-group')
-				.append(_luci2.ui.button(_luci2.tr('Save & Apply'), 'primary')
+				.append(L.ui.button(L.tr('Save & Apply'), 'primary')
 					.click({ self: this }, function(ev) {  }))
-				.append(_luci2.ui.button(_luci2.tr('Save'), 'default')
+				.append(L.ui.button(L.tr('Save'), 'default')
 					.click({ self: this }, function(ev) { ev.data.self.send(); }))
-				.append(_luci2.ui.button(_luci2.tr('Cancel'), 'default')
-					.click({ self: this }, function(ev) { _luci2.ui.dialog(false); }));
+				.append(L.ui.button(L.tr('Cancel'), 'default')
+					.click({ self: this }, function(ev) { L.ui.dialog(false); }));
 		},
 
 		render: function()
 		{
-			var modal = _luci2.ui.dialog(this.label('caption'), null, { wide: true });
+			var modal = L.ui.dialog(this.label('caption'), null, { wide: true });
 			var map = $('<form />');
 
 			var desc = this.label('description');
@@ -7230,13 +7230,13 @@ function LuCI2()
 		{
 			var self = this;
 
-			_luci2.ui.loading(true);
+			L.ui.loading(true);
 
 			return self.load().then(function() {
 				self.render();
 				self.finish();
 
-				_luci2.ui.loading(false);
+				L.ui.loading(false);
 			});
 		}
 	});
