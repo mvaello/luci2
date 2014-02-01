@@ -5240,7 +5240,7 @@ function LuCI2()
 			return (i.disabled || i.error.text() == '');
 		},
 
-		depends: function(d, v)
+		depends: function(d, v, add)
 		{
 			var dep;
 
@@ -5285,7 +5285,11 @@ function LuCI2()
 			if ($.isEmptyObject(dep))
 				return this;
 
-			this.dependencies.push(dep);
+			if (!add || !this.dependencies.length)
+				this.dependencies.push(dep);
+			else
+				for (var i = 0; i < this.dependencies.length; i++)
+					$.extend(this.dependencies[i], dep);
 
 			return this;
 		},
