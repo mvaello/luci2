@@ -5489,7 +5489,7 @@ function LuCI2()
 			var s = $('<select />')
 				.addClass('form-control');
 
-			if (this.options.optional)
+			if (this.options.optional && !this.has_empty)
 				$('<option />')
 					.attr('value', '')
 					.text(_luci2.tr('-- Please choose --'))
@@ -5511,6 +5511,9 @@ function LuCI2()
 		{
 			if (!this.choices)
 				this.choices = [ ];
+
+			if (k == '')
+				this.has_empty = true;
 
 			this.choices.push([k, v || k]);
 			return this;
@@ -5586,10 +5589,7 @@ function LuCI2()
 			{
 				ev.data.select.hide();
 				ev.data.input.show().focus();
-
-				var v = ev.data.input.val();
-				ev.data.input.val(' ');
-				ev.data.input.val(v);
+				ev.data.input.val('');
 			}
 			else if (self.options.optional && s.selectedIndex == 0)
 			{
@@ -5599,6 +5599,8 @@ function LuCI2()
 			{
 				ev.data.input.val(ev.data.select.val());
 			}
+
+			ev.stopPropagation();
 		},
 
 		_blur: function(ev)
@@ -5609,7 +5611,7 @@ function LuCI2()
 
 			ev.data.select.empty();
 
-			if (self.options.optional)
+			if (self.options.optional && !self.has_empty)
 				$('<option />')
 					.attr('value', '')
 					.text(_luci2.tr('-- please choose --'))
@@ -5639,7 +5641,7 @@ function LuCI2()
 				.appendTo(ev.data.select);
 
 			ev.data.input.hide();
-			ev.data.select.val(val).show().focus();
+			ev.data.select.val(val).show().blur();
 		},
 
 		_enter: function(ev)
@@ -5685,6 +5687,9 @@ function LuCI2()
 		{
 			if (!this.choices)
 				this.choices = [ ];
+
+			if (k == '')
+				this.has_empty = true;
 
 			this.choices.push([k, v || k]);
 			return this;
