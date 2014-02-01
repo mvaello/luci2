@@ -6841,6 +6841,9 @@ function LuCI2()
 			if (cur == tab_index)
 				tabh.addClass('active');
 
+			if (!tab.fields.length)
+				tabh.hide();
+
 			return tabh;
 		},
 
