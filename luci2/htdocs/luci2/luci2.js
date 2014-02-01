@@ -6126,6 +6126,168 @@ function LuCI2()
 		}
 	});
 
+	this.cbi.DeviceList = this.cbi.NetworkList.extend({
+		_ev_focus: function(ev)
+		{
+			var self = ev.data.self;
+			var input = $(this);
+
+			input.parent().prev().prop('checked', true);
+		},
+
+		_ev_blur: function(ev)
+		{
+			ev.which = 10;
+			ev.data.self._ev_keydown.call(this, ev);
+		},
+
+		_ev_keydown: function(ev)
+		{
+			if (ev.which != 10 && ev.which != 13)
+				return;
+
+			var sid = ev.data.sid;
+			var self = ev.data.self;
+			var input = $(this);
+			var ifnames = _luci2.toArray(input.val());
+
+			if (!ifnames.length)
+				return;
+
+			_luci2.NetworkModel.createDevice(ifnames[0]);
+
+			self._redraw(sid, $('#' + self.id(sid)), ifnames[0]);
+		},
+
+		load: function(sid)
+		{
+			return _luci2.NetworkModel.init();
+		},
+
+		_redraw: function(sid, ul, sel)
+		{
+			var id = ul.attr('id');
+			var devs = _luci2.NetworkModel.getDevices();
+			var iface = _luci2.NetworkModel.getInterface(sid);
+			var itype = this.options.multiple ? 'checkbox' : 'radio';
+			var check = { };
+
+			if (!sel)
+			{
+				for (var i = 0; i < devs.length; i++)
+					if (devs[i].isInNetwork(iface))
+						check[devs[i].name()] = true;
+			}
+			else
+			{
+				if (this.options.multiple)
+					check = _luci2.toObject(this.formvalue(sid));
+
+				check[sel] = true;
+			}
+
+			ul.empty();
+
+			for (var i = 0; i < devs.length; i++)
+			{
+				var dev = devs[i];
+
+				if (dev.isBridge() && this.options.bridges === false)
+					continue;
+
+				if (!dev.isBridgeable() && this.options.multiple)
+					continue;
+
+				var badge = $('<span />')
+					.addClass('badge')
+					.append($('<img />').attr('src', dev.icon()))
+					.append(' %s: %s'.format(dev.name(), dev.description()));
+
+				//var ifcs = dev.getInterfaces();
+				//if (ifcs.length)
+				//{
+				//	for (var j = 0; j < ifcs.length; j++)
+				//		badge.append((j ? ', ' : ' (') + ifcs[j].name());
+				//
+				//	badge.append(')');
+				//}
+
+				$('<li />')
+					.append($('<label />')
+						.addClass(itype + ' inline')
+						.append($('<input />')
+							.attr('name', itype + id)
+							.attr('type', itype)
+							.attr('value', dev.name())
+							.prop('checked', !!check[dev.name()]))
+						.append(badge))
+					.appendTo(ul);
+			}
+
+
+			$('<li />')
+				.append($('<label />')
+					.attr('for', 'custom' + id)
+					.addClass(itype + ' inline')
+					.append($('<input />')
+						.attr('name', itype + id)
+						.attr('type', itype)
+						.attr('value', ''))
+					.append($('<span />')
+						.addClass('badge')
+						.append($('<input />')
+							.attr('id', 'custom' + id)
+							.attr('type', 'text')
+							.attr('placeholder', _luci2.tr('Custom device …'))
+							.on('focus', { self: this, sid: sid }, this._ev_focus)
+							.on('blur', { self: this, sid: sid }, this._ev_blur)
+							.on('keydown', { self: this, sid: sid }, this._ev_keydown))))
+				.appendTo(ul);
+
+			if (!this.options.multiple)
+			{
+				$('<li />')
+					.append($('<label />')
+						.addClass(itype + ' inline text-muted')
+						.append($('<input />')
+							.attr('name', itype + id)
+							.attr('type', itype)
+							.attr('value', '')
+							.prop('checked', $.isEmptyObject(check)))
+						.append(_luci2.tr('unspecified')))
+					.appendTo(ul);
+			}
+		},
+
+		widget: function(sid)
+		{
+			var id = this.id(sid);
+			var ul = $('<ul />')
+				.attr('id', id)
+				.addClass('list-unstyled');
+
+			this._redraw(sid, ul);
+
+			return ul;
+		},
+
+		save: function(sid)
+		{
+			if (this.instance[sid].disabled)
+				return;
+
+			var ifnames = this.formvalue(sid);
+			//if (!ifnames)
+			//	return;
+
+			var iface = _luci2.NetworkModel.getInterface(sid);
+			if (!iface)
+				return;
+
+			iface.setDevices($.isArray(ifnames) ? ifnames : [ ifnames ]);
+		}
+	});
+
 
 	this.cbi.AbstractSection = this.ui.AbstractWidget.extend({
 		id: function()
