@@ -1,24 +1,59 @@
 L.ui.view.extend({
 	title: L.tr('Diagnostics'),
 
+	runPing: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'ping',
+		params: [ 'data' ],
+		expect: { '': { code: -1 } }
+	}),
+
+	runPing6: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'ping6',
+		params: [ 'data' ],
+		expect: { '': { code: -1 } }
+	}),
+
+	runTraceroute: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'traceroute',
+		params: [ 'data' ],
+		expect: { '': { code: -1 } }
+	}),
+
+	runTraceroute6: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'traceroute6',
+		params: [ 'data' ],
+		expect: { '': { code: -1 } }
+	}),
+
+	runNslookup: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'nslookup',
+		params: [ 'data' ],
+		expect: { '': { code: -1 } }
+	}),
+
 	execute: function() {
 		var self = this;
 		var tools = [ ];
 
 		$.when(
-			L.network.runPing('?').then(function(rv) {
+			self.runPing('?').then(function(rv) {
 				if (rv.code != -1) tools.push(['runPing', L.tr('IPv4 Ping')]);
 			}),
-			L.network.runPing6('?').then(function(rv) {
+			self.runPing6('?').then(function(rv) {
 				if (rv.code != -1) tools.push(['runPing6', L.tr('IPv6 Ping')]);
 			}),
-			L.network.runTraceroute('?').then(function(rv) {
+			self.runTraceroute('?').then(function(rv) {
 				if (rv.code != -1) tools.push(['runTraceroute', L.tr('IPv4 Traceroute')]);
 			}),
-			L.network.runTraceroute6('?').then(function(rv) {
+			self.runTraceroute6('?').then(function(rv) {
 				if (rv.code != -1) tools.push(['runTraceroute6', L.tr('IPv6 Tracroute')]);
 			}),
-			L.network.runNslookup('?').then(function(rv) {
+			self.runNslookup('?').then(function(rv) {
 				if (rv.code != -1) tools.push(['runNslookup', L.tr('DNS Lookup')]);
 			})
 		).then(function() {
@@ -38,7 +73,7 @@ L.ui.view.extend({
 
 			$('#run').click(function() {
 				L.ui.loading(true);
-				L.network[$('#tool').val()]($('#host').val()).then(function(rv) {
+				self[$('#tool').val()]($('#host').val()).then(function(rv) {
 					$('#output').empty().show();
 
 					if (rv.stdout)

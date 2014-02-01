@@ -2,6 +2,37 @@ L.ui.view.extend({
 	title: L.tr('Switch'),
 	description: L.tr('The network ports on this device can be combined to several VLANs in which computers can communicate directly with each other. VLANs are often used to separate different network segments. Often there is by default one Uplink port for a connection to the next greater network like the internet and other ports for a local network.'),
 
+	listSwitchNames: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'switch_list',
+		expect: { switches: [ ] }
+	}),
+
+	getSwitchInfo: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'switch_info',
+		params: [ 'switch' ],
+		expect: { info: { } },
+		filter: function(data, params) {
+			data['attrs']      = data['switch'];
+			data['vlan_attrs'] = data['vlan'];
+			data['port_attrs'] = data['port'];
+			data['switch']     = params['switch'];
+
+			delete data.vlan;
+			delete data.port;
+
+			return data;
+		}
+	}),
+
+	getSwitchStatus: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'switch_status',
+		params: [ 'switch' ],
+		expect: { ports: [ ] }
+	}),
+
 	switchPortState: L.cbi.ListValue.extend({
 		choices: [
 			[ 'n', L.trc('Switch port state', 'off')      ],
@@ -60,11 +91,11 @@ L.ui.view.extend({
 
 	execute: function() {
 		var self = this;
-		return L.network.listSwitchNames().then(function(switches) {
+		return self.listSwitchNames().then(function(switches) {
 			L.rpc.batch();
 
 			for (var i = 0; i < switches.length; i++)
-				L.network.getSwitchInfo(switches[i]);
+				self.getSwitchInfo(switches[i]);
 
 			return L.rpc.flush();
 		}).then(function(switches) {
@@ -283,25 +314,25 @@ L.ui.view.extend({
 			}
 
 			return m.insertInto('#map').then(function() {
-                self.repeat(function() {
-                    return L.network.getSwitchStatus(swname).then(function(ports) {
-                        for (var j = 0; j < ports.length; j++)
-                        {
-                            var s = L.tr('No link');
-                            var d = '&#160;';
+				self.repeat(function() {
+					return self.getSwitchStatus(swname).then(function(ports) {
+						for (var j = 0; j < ports.length; j++)
+						{
+							var s = L.tr('No link');
+							var d = '&#160;';
 
-                            if (ports[j].link)
-                            {
-                                s = '%dbaseT'.format(ports[j].speed);
-                                d = ports[j].full_duplex ? L.tr('Full-duplex') : L.tr('Half-duplex');
-                            }
+							if (ports[j].link)
+							{
+								s = '%dbaseT'.format(ports[j].speed);
+								d = ports[j].full_duplex ? L.tr('Full-duplex') : L.tr('Half-duplex');
+							}
 
-                            $('#portstatus-%s-%d'.format(swname, j))
-                                .empty().append(s + '<br />' + d);
-                        }
-                    });
-                }, 5000);
-            });
+							$('#portstatus-%s-%d'.format(swname, j))
+								.empty().append(s + '<br />' + d);
+						}
+					});
+				}, 5000);
+			});
 		});
 	}
 });

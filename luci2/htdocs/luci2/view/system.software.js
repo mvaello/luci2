@@ -1,6 +1,120 @@
 L.ui.view.extend({
 	title: L.tr('Package management'),
 
+	opkg: {
+		updateLists: L.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'update',
+			expect: { '': { } }
+		}),
+
+		_allPackages: L.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'list',
+			params: [ 'offset', 'limit', 'pattern' ],
+			expect: { '': { } }
+		}),
+
+		_installedPackages: L.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'list_installed',
+			params: [ 'offset', 'limit', 'pattern' ],
+			expect: { '': { } }
+		}),
+
+		_findPackages: L.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'find',
+			params: [ 'offset', 'limit', 'pattern' ],
+			expect: { '': { } }
+		}),
+
+		_fetchPackages: function(action, offset, limit, pattern)
+		{
+			var packages = [ ];
+
+			return action(offset, limit, pattern).then(function(list) {
+				if (!list.total || !list.packages)
+					return { length: 0, total: 0 };
+
+				packages.push.apply(packages, list.packages);
+				packages.total = list.total;
+
+				if (limit <= 0)
+					limit = list.total;
+
+				if (packages.length >= limit)
+					return packages;
+
+				L.rpc.batch();
+
+				for (var i = offset + packages.length; i < limit; i += 100)
+					action(i, (Math.min(i + 100, limit) % 100) || 100, pattern);
+
+				return L.rpc.flush();
+			}).then(function(lists) {
+				for (var i = 0; i < lists.length; i++)
+				{
+					if (!lists[i].total || !lists[i].packages)
+						continue;
+
+					packages.push.apply(packages, lists[i].packages);
+					packages.total = lists[i].total;
+				}
+
+				return packages;
+			});
+		},
+
+		listPackages: function(offset, limit, pattern)
+		{
+			return this._fetchPackages(this._allPackages, offset, limit, pattern);
+		},
+
+		installedPackages: function(offset, limit, pattern)
+		{
+			return this._fetchPackages(this._installedPackages, offset, limit, pattern);
+		},
+
+		findPackages: function(offset, limit, pattern)
+		{
+			return this._fetchPackages(this._findPackages, offset, limit, pattern);
+		},
+
+		installPackage: L.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'install',
+			params: [ 'package' ],
+			expect: { '': { } }
+		}),
+
+		removePackage: L.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'remove',
+			params: [ 'package' ],
+			expect: { '': { } }
+		}),
+
+		getConfig: L.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'config_get',
+			expect: { config: '' }
+		}),
+
+		setConfig: L.rpc.declare({
+			object: 'luci2.opkg',
+			method: 'config_set',
+			params: [ 'data' ]
+		}),
+
+		isInstalled: function(pkg)
+		{
+			return this._installedPackages(0, 1, pkg).then(function(list) {
+				return (!isNaN(list.total) && list.total > 0);
+			});
+		}
+	},
+
 	updateDiskSpace: function()
 	{
 		return L.system.getDiskInfo().then(function(info) {
@@ -15,19 +129,19 @@ L.ui.view.extend({
 
 	installRemovePackage: function(pkgname, installed)
 	{
+		var self = this;
+
 		var dspname   = pkgname.replace(/^.+\//, '');
-		var action    = installed ? L.opkg.removePackage : L.opkg.installPackage;
+		var action    = installed ? self.opkg.removePackage : self.opkg.installPackage;
 		var title     = (installed ? L.tr('Removing package "%s" …') : L.tr('Installing package "%s" …')).format(dspname);
 		var confirm   = (installed ? L.tr('Really remove package "%h" ?') : L.tr('Really install package "%h" ?')).format(dspname);
-
-		var self = this;
 
 		L.ui.dialog(title, confirm, {
 			style:   'confirm',
 			confirm: function() {
 				L.ui.dialog(title, L.tr('Waiting for package manager …'), { style: 'wait' });
 
-				action(pkgname).then(function(res) {
+				action.call(self.opkg, pkgname).then(function(res) {
 					self.fetchInstalledList().then(function() { return self.fetchPackageList(); }).then(function() {
 						var output = [ ];
 
@@ -52,7 +166,7 @@ L.ui.view.extend({
 	fetchInstalledList: function()
 	{
 		var self = this;
-		return L.opkg.installedPackages(0, 0, '*').then(function(list) {
+		return self.opkg.installedPackages(0, 0, '*').then(function(list) {
 			self.installedList = { };
 			for (var i = 0; i < list.length; i++)
 				self.installedList[list[i][0]] = true;
@@ -67,19 +181,21 @@ L.ui.view.extend({
 		if (typeof(offset) == 'undefined')
 			offset = parseInt($('#package_filter').attr('offset')) || 0;
 
+		var self = this;
+
 		var pattern = $('#package_filter').val() || '';
 		var action;
 
 		if (pattern.length)
 		{
-			action = $('#package_which').prop('checked') ? L.opkg.installedPackages : L.opkg.findPackages;
+			action = $('#package_which').prop('checked') ? self.opkg.installedPackages : self.opkg.findPackages;
 			pattern = '*' + pattern + '*';
 
 			$('#package_filter').next().attr('src', L.globals.resource + '/icons/cbi/remove.gif');
 		}
 		else
 		{
-			action = $('#package_which').prop('checked') ? L.opkg.installedPackages : L.opkg.listPackages;
+			action = $('#package_which').prop('checked') ? self.opkg.installedPackages : self.opkg.listPackages;
 			pattern = '*';
 
 			$('#package_filter').next().attr('src', L.globals.resource + '/icons/cbi/find.gif');
@@ -88,9 +204,8 @@ L.ui.view.extend({
 		$('#package_filter').attr('offset', offset);
 
 		var install_disabled = $('#package_install').attr('disabled');
-		var self = this;
 
-		return action(offset, 100, pattern).then(function(list) {
+		return action.call(self.opkg, offset, 100, pattern).then(function(list) {
 			var packageTable = new L.ui.table({
 				placeholder: L.tr('No matching packages found.'),
 				columns: [ {
@@ -159,7 +274,7 @@ L.ui.view.extend({
 		$('#package_update, #package_url, #package_install').attr('disabled', !this.options.acls.software);
 
 		return $.when(
-			L.opkg.getConfig().then(function(config) {
+			self.opkg.getConfig().then(function(config) {
 				$('#config textarea')
 					.attr('rows', (config.match(/\n/g) || [ ]).length + 1)
 					.val(config);
@@ -168,7 +283,7 @@ L.ui.view.extend({
 					.click(function() {
 						var data = ($('#config textarea').val() || '').replace(/\r/g, '').replace(/\n?$/, '\n');
 						L.ui.loading(true);
-						L.opkg.setConfig(data).then(function() {
+						self.opkg.setConfig(data).then(function() {
 							$('#config textarea')
 								.attr('rows', (data.match(/\n/g) || [ ]).length + 1)
 								.val(data);
@@ -225,7 +340,7 @@ L.ui.view.extend({
 
 			$('#package_update').click(function(ev) {
 				L.ui.dialog(L.tr('Updating package lists'), L.tr('Waiting for package manager …'), { style: 'wait' });
-				L.opkg.updateLists().then(function(res) {
+				self.opkg.updateLists().then(function(res) {
 					var output = [ ];
 
 					if (res.stdout)

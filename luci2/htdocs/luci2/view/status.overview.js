@@ -1,10 +1,30 @@
 L.ui.view.extend({
 	title: L.tr('Status'),
-	execute: function() {
+
+	getConntrackCount: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'conntrack_count',
+		expect: { '': { count: 0, limit: 0 } }
+	}),
+
+	getDHCPLeases: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'dhcp_leases',
+		expect: { leases: [ ] }
+	}),
+
+	getDHCPv6Leases: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'dhcp6_leases',
+		expect: { leases: [ ] }
+	}),
+
+	renderContents: function() {
+		var self = this;
 		return $.when(
-			L.network.findWanInterfaces().then(function(wans) {
-				var wan  = wans[0];
-				var wan6 = wans[1];
+			L.NetworkModel.refreshStatus().then(function() {
+				var wan  = L.NetworkModel.findWAN();
+				var wan6 = L.NetworkModel.findWAN6();
 
 				if (!wan && !wan6)
 				{
@@ -21,57 +41,36 @@ L.ui.view.extend({
 						width:  '146px',
 						align:  'right',
 						format: function(v) {
-							return new L.ui.devicebadge(v).render();
+							var dev = L.NetworkModel.resolveAlias(v.getDevice());
+							if (dev)
+								return $('<span />')
+									.addClass('badge')
+									.attr('title', dev.description())
+									.append($('<img />').attr('src', dev.icon()))
+									.append(' %s'.format(dev.name()));
+
+							return '';
 						}
 					}, {
 						format: function(v, n) {
-							var format_addr = function()
-							{
-								var rv = [ ];
-								if (n > 0)
-								{
-									for (var i = 0; i < v['ipv6-address'].length; i++)
-										rv.push('%s/%d'.format(v['ipv6-address'][i].address, v['ipv6-address'][i].mask));
-
-									for (var i = 0; i < v['ipv6-prefix-assignment'].length; i++)
-										rv.push('%s1/%d'.format(v['ipv6-prefix-assignment'][i].address, v['ipv6-prefix-assignment'][i].mask));
-								}
-								else
-								{
-									for (var i = 0; i < v['ipv4-address'].length; i++)
-										rv.push('%s/%d'.format(v['ipv4-address'][i].address, v['ipv4-address'][i].mask));
-								}
-								return rv.join(', ');
-							};
-
-							var format_dns = function()
-							{
-								var rv = [ ];
-								for (var i = 0; i < v['dns-server'].length; i++)
-								{
-									if ((n > 0 && v['dns-server'][i].indexOf(':') > -1) ||
-									    (n == 0 && v['dns-server'][i].indexOf(':') == -1))
-										rv.push(v['dns-server'][i]);
-								}
-								return rv.join(', ');
-							};
-
 							var s = '<strong>' + L.tr('Type') + ':</strong> %s | ' +
-							        '<strong>' + L.tr('Connected') + ':</strong> %t<br />' +
-							        '<strong>' + L.tr('Address') + ':</strong> %s<br />';
+							        '<strong>' + L.tr('Connected') + ':</strong> %t<br />';
 
-							s = s.format(v.proto, v.uptime, format_addr());
+							s = s.format(v.getProtocol().description, v.getUptime(),
+							             n ? v.getIPv6Addrs(true).join(', ')
+							               : v.getIPv4Addrs(true).join(', '));
 
-							for (var i = 0; i < v.route.length; i++)
-								if (v.route[i].mask == 0 && v.route[i].nexthop != '::')
-								{
-									s += '<strong>' + L.tr('Gateway') + ':</strong> %s<br />'.format(v.route[i].nexthop);
-									break;
-								}
+							var addr = n ? v.getIPv6Addrs() : v.getIPv4Addrs();
+							if (addr.length)
+								s += '<strong>' + L.tr('Address') + ':</strong> %s<br />'.format(addr.join(', '));
 
-							var dns = format_dns();
-							if (dns)
-								s += '<strong>' + L.tr('DNS') + ':</strong> %s<br />'.format(dns);
+							var gw = v.getIPv4Gateway();
+							if (gw)
+								s += '<strong>' + L.tr('Gateway') + ':</strong> %s<br />'.format(gw);
+
+							var dns = n ? v.getIPv6DNS() : v.getIPv4DNS();
+							if (dns.length)
+								s += '<strong>' + L.tr('DNS') + ':</strong> %s<br />'.format(dns.join(', '));
 
 							return s;
 						}
@@ -86,7 +85,7 @@ L.ui.view.extend({
 
 				networkTable.insertInto('#network_status_table');
 			}),
-			L.network.getConntrackCount().then(function(count) {
+			self.getConntrackCount().then(function(count) {
 				var conntrackTable = new L.ui.table({
 					caption: L.tr('Connection Tracking'),
 					columns: [ {
@@ -352,7 +351,7 @@ L.ui.view.extend({
 				assocTable.rows(assoclist);
 				assocTable.insertInto('#wifi_assoc_table');
 			}),
-			L.network.getDHCPLeases().then(function(leases) {
+			self.getDHCPLeases().then(function(leases) {
 				var leaseTable = new L.ui.table({
 					caption:     L.tr('DHCP Leases'),
 					placeholder: L.tr('There are no active leases.'),
@@ -378,7 +377,7 @@ L.ui.view.extend({
 				leaseTable.rows(leases);
 				leaseTable.insertInto('#lease_status_table');
 			}),
-			L.network.getDHCPv6Leases().then(function(leases) {
+			self.getDHCPv6Leases().then(function(leases) {
 				if (!leases.length)
 					return;
 
@@ -407,5 +406,13 @@ L.ui.view.extend({
 				leaseTable.insertInto('#lease6_status_table');
 			})
 		)
+	},
+
+	execute: function()
+	{
+		var self = this;
+        return L.NetworkModel.init().then(function() {
+			self.repeat(self.renderContents, 5000);
+        });
 	}
 });

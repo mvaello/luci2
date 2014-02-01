@@ -1,9 +1,29 @@
 L.ui.view.extend({
 	title: L.tr('Routes'),
 	description: L.tr('The following rules are currently active on this system.'),
+
+	getRoutes: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'routes',
+		expect: { routes: [ ] }
+	}),
+
+	getIPv6Routes: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'routes',
+		expect: { routes: [ ] }
+	}),
+
+	getARPTable: L.rpc.declare({
+		object: 'luci2.network',
+		method: 'arp_table',
+		expect: { entries: [ ] }
+	}),
+
 	execute: function() {
+		var self = this;
 		return $.when(
-			L.network.getARPTable().then(function(arp) {
+			self.getARPTable().then(function(arp) {
 				var arpTable = new L.ui.table({
 					caption: L.tr('ARP'),
 					columns: [{
@@ -21,7 +41,7 @@ L.ui.view.extend({
 				arpTable.rows(arp);
 				arpTable.insertInto('#arp_table');
 			}),
-			L.network.getRoutes().then(function(routes) {
+			self.getRoutes().then(function(routes) {
 				var routeTable = new L.ui.table({
 					caption: L.tr('Active IPv4-Routes'),
 					columns: [{
@@ -42,7 +62,7 @@ L.ui.view.extend({
 				routeTable.rows(routes);
 				routeTable.insertInto('#route_table');
 			}),
-			L.network.getIPv6Routes().then(function(routes) {
+			self.getIPv6Routes().then(function(routes) {
 				var route6Table = new L.ui.table({
 					caption: L.tr('Active IPv6-Routes'),
 					columns: [{
