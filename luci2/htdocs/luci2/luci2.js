@@ -5957,7 +5957,7 @@ function LuCI2()
 		formvalue: function(sid)
 		{
 			var rv = [ ];
-			var fields = $('#' + this.id(sid) + ' > input');
+			var fields = $('#' + this.id(sid) + ' input');
 
 			for (var i = 0; i < fields.length; i++)
 				if (typeof(fields[i].value) == 'string' && fields[i].value.length)
