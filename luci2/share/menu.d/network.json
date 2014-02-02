@@ -12,12 +12,14 @@
     "network/switch": {
         "title": "Switch",
         "acls": [ "network" ],
+        "files": [ "/sbin/swconfig" ],
         "view": "network/switch",
         "index": 30
     },
     "network/hosts": {
         "title": "Hostnames",
         "acls": [ "hostnames" ],
+        "files": [ "/etc/config/dhcp" ],
         "view": "network/hosts",
         "index": 50
     },

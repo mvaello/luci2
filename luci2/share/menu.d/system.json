@@ -24,6 +24,7 @@
     "system/software": {
         "title": "Software",
         "acls": [ "software" ],
+        "files": [ "/bin/opkg" ],
         "view": "system/software",
         "index": 40
     },
@@ -48,6 +49,7 @@
     "system/leds": {
         "title": "LED Configuration",
         "acls": [ "leds" ],
+        "files": [ "/etc/init.d/led" ],
         "view": "system/leds",
         "index": 80
     }
