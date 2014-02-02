@@ -2562,6 +2562,30 @@ menu_access(struct blob_attr *sid, struct blob_attr *acls, struct blob_buf *e)
 	return rv;
 }
 
+static bool
+menu_files(struct blob_attr *files)
+{
+	int rem;
+	bool empty = true;
+	struct stat s;
+	struct blob_attr *file;
+
+	blobmsg_for_each_attr(file, files, rem)
+	{
+		empty = false;
+
+		if (blobmsg_type(file) != BLOBMSG_TYPE_STRING)
+			continue;
+
+		if (stat(blobmsg_get_string(file), &s) || !S_ISREG(s.st_mode))
+			continue;
+
+		return true;
+	}
+
+	return empty;
+}
+
 static int
 rpc_luci2_ui_menu(struct ubus_context *ctx, struct ubus_object *obj,
                   struct ubus_request_data *req, const char *method,
@@ -2573,7 +2597,7 @@ rpc_luci2_ui_menu(struct ubus_context *ctx, struct ubus_object *obj,
 	struct blob_buf item = { 0 };
 	struct blob_attr *entry, *attr;
 	struct blob_attr *tb[__RPC_MENU_MAX];
-	bool access;
+	bool access, files;
 	void *c, *d;
 
 	blobmsg_parse(rpc_menu_policy, __RPC_MENU_MAX, tb,
@@ -2597,7 +2621,7 @@ rpc_luci2_ui_menu(struct ubus_context *ctx, struct ubus_object *obj,
 
 			blob_for_each_attr(entry, menu.head, rem)
 			{
-				access = true;
+				access = files = true;
 
 				blob_buf_init(&item, 0);
 				d = blobmsg_open_table(&item, blobmsg_name(entry));
@@ -2607,13 +2631,16 @@ rpc_luci2_ui_menu(struct ubus_context *ctx, struct ubus_object *obj,
 					if (blob_id(attr) == BLOBMSG_TYPE_ARRAY &&
 					    !strcmp(blobmsg_name(attr), "acls"))
 						access = menu_access(tb[RPC_MENU_SESSION], attr, &item);
+					else if (blob_id(attr) == BLOBMSG_TYPE_ARRAY &&
+					         !strcmp(blobmsg_name(attr), "files"))
+						files = menu_files(attr);
 					else
 						blobmsg_add_blob(&item, attr);
 				}
 
 				blobmsg_close_table(&item, d);
 
-				if (access)
+				if (access && files)
 					blob_for_each_attr(attr, item.head, rem2)
 						blobmsg_add_blob(&buf, attr);
 
