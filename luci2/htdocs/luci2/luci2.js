@@ -674,7 +674,7 @@ function LuCI2()
 		init: function()
 		{
 			this.state = {
-				newid:   0,
+				newidx:  0,
 				values:  { },
 				creates: { },
 				changes: { },
@@ -715,6 +715,19 @@ function LuCI2()
 			params: [ 'config', 'section', 'options' ]
 		}),
 
+		_newid: function(conf)
+		{
+			var v = this.state.values;
+			var n = this.state.creates;
+			var sid;
+
+			do {
+				sid = "new%06x".format(Math.random() * 0xFFFFFF);
+			} while ((n[conf] && n[conf][sid]) || (v[conf] && v[conf][sid]));
+
+			return sid;
+		},
+
 		load: function(packages)
 		{
 			var self = this;
@@ -727,7 +740,7 @@ function LuCI2()
 			L.rpc.batch();
 
 			for (var i = 0; i < packages.length; i++)
-				if (!seen[packages[i]])
+				if (!seen[packages[i]] && !self.state.values[packages[i]])
 				{
 					pkgs.push(packages[i]);
 					seen[packages[i]] = true;
@@ -758,21 +771,21 @@ function LuCI2()
 
 		add: function(conf, type, name)
 		{
-			var c = this.state.creates;
-			var s = '.new.%d'.format(this.state.newid++);
+			var n = this.state.creates;
+			var sid = this._newid(conf);
 
-			if (!c[conf])
-				c[conf] = { };
+			if (!n[conf])
+				n[conf] = { };
 
-			c[conf][s] = {
+			n[conf][sid] = {
 				'.type':      type,
-				'.name':      s,
+				'.name':      sid,
 				'.create':    name,
 				'.anonymous': !name,
-				'.index':     1000 + this.state.newid
+				'.index':     1000 + this.state.newidx++
 			};
 
-			return s;
+			return sid;
 		},
 
 		remove: function(conf, sid)
@@ -782,10 +795,9 @@ function LuCI2()
 			var d = this.state.deletes;
 
 			/* requested deletion of a just created section */
-			if (sid.indexOf('.new.') == 0)
+			if (n[conf] && n[conf][sid])
 			{
-				if (n[conf])
-					delete n[conf][sid];
+				delete n[conf][sid];
 			}
 			else
 			{
@@ -845,7 +857,7 @@ function LuCI2()
 				return undefined;
 
 			/* requested option in a just created section */
-			if (sid.indexOf('.new.') == 0)
+			if (n[conf] && n[conf][sid])
 			{
 				if (!n[conf])
 					return undefined;
@@ -890,6 +902,7 @@ function LuCI2()
 
 		set: function(conf, sid, opt, val)
 		{
+			var v = this.state.values;
 			var n = this.state.creates;
 			var c = this.state.changes;
 			var d = this.state.deletes;
@@ -899,20 +912,21 @@ function LuCI2()
 			    opt.charAt(0) == '.')
 				return;
 
-			if (sid.indexOf('.new.') == 0)
+			if (n[conf] && n[conf][sid])
 			{
-				if (n[conf] && n[conf][sid])
-				{
-					if (typeof(val) != 'undefined')
-						n[conf][sid][opt] = val;
-					else
-						delete n[conf][sid][opt];
-				}
+				if (typeof(val) != 'undefined')
+					n[conf][sid][opt] = val;
+				else
+					delete n[conf][sid][opt];
 			}
 			else if (typeof(val) != 'undefined')
 			{
 				/* do not set within deleted section */
 				if (d[conf] && d[conf][sid] === true)
+					return;
+
+				/* only set in existing sections */
+				if (!v[conf] || !v[conf][sid])
 					return;
 
 				if (!c[conf])
@@ -929,6 +943,10 @@ function LuCI2()
 			}
 			else
 			{
+				/* only delete in existing sections */
+				if (!v[conf] || !v[conf][sid])
+					return;
+
 				if (!d[conf])
 					d[conf] = { };
 
@@ -976,7 +994,7 @@ function LuCI2()
 			{
 				var o = [ ];
 
-				if (n && n[c])
+				if (n[c])
 					for (var s in n[c])
 						o.push(n[c][s]);
 
@@ -1024,45 +1042,63 @@ function LuCI2()
 		{
 			L.rpc.batch();
 
+			var v = this.state.values;
+			var n = this.state.creates;
+			var c = this.state.changes;
+			var d = this.state.deletes;
+
 			var self = this;
 			var snew = [ ];
+			var pkgs = { };
 
-			if (self.state.creates)
-				for (var c in self.state.creates)
-					for (var s in self.state.creates[c])
+			if (n)
+				for (var conf in n)
+				{
+					for (var sid in n[conf])
 					{
 						var r = {
-							config: c,
+							config: conf,
 							values: { }
 						};
 
-						for (var k in self.state.creates[c][s])
+						for (var k in n[conf][sid])
 						{
 							if (k == '.type')
-								r.type = self.state.creates[c][s][k];
+								r.type = n[conf][sid][k];
 							else if (k == '.create')
-								r.name = self.state.creates[c][s][k];
+								r.name = n[conf][sid][k];
 							else if (k.charAt(0) != '.')
-								r.values[k] = self.state.creates[c][s][k];
+								r.values[k] = n[conf][sid][k];
 						}
 
-						snew.push(self.state.creates[c][s]);
+						snew.push(n[conf][sid]);
 
 						self._add(r.config, r.type, r.name, r.values);
 					}
 
-			if (self.state.changes)
-				for (var c in self.state.changes)
-					for (var s in self.state.changes[c])
-						self._set(c, s, self.state.changes[c][s]);
+					pkgs[conf] = true;
+				}
 
-			if (self.state.deletes)
-				for (var c in self.state.deletes)
-					for (var s in self.state.deletes[c])
+			if (c)
+				for (var conf in c)
+				{
+					for (var sid in c[conf])
+						self._set(conf, sid, c[conf][sid]);
+
+					pkgs[conf] = true;
+				}
+
+			if (d)
+				for (var conf in d)
+				{
+					for (var sid in d[conf])
 					{
-						var o = self.state.deletes[c][s];
-						self._delete(c, s, (o === true) ? undefined : o);
+						var o = d[conf][sid];
+						self._delete(conf, sid, (o === true) ? undefined : o);
 					}
+
+					pkgs[conf] = true;
+				}
 
 			return L.rpc.flush().then(function(responses) {
 				/*
@@ -1073,6 +1109,12 @@ function LuCI2()
 					snew[i]['.name'] = responses[i];
 
 				return self._reorder();
+			}).then(function() {
+				pkgs = L.toArray(pkgs);
+
+				self.unload(pkgs);
+
+				return self.load(pkgs);
 			});
 		},
 
@@ -3686,6 +3728,33 @@ function LuCI2()
 
 		appendTo: function(id) {
 			return $(id).append(this.render());
+		},
+
+		on: function(evname, evfunc)
+		{
+			var evnames = L.toArray(evname);
+
+			if (!this.events)
+				this.events = { };
+
+			for (var i = 0; i < evnames.length; i++)
+				this.events[evnames[i]] = evfunc;
+
+			return this;
+		},
+
+		trigger: function(evname, evdata)
+		{
+			if (this.events)
+			{
+				var evnames = L.toArray(evname);
+
+				for (var i = 0; i < evnames.length; i++)
+					if (this.events[evnames[i]])
+						this.events[evnames[i]].call(this, evdata);
+			}
+
+			return this;
 		}
 	});
 
@@ -4704,7 +4773,6 @@ function LuCI2()
 			this.instance = { };
 			this.dependencies = [ ];
 			this.rdependency = { };
-			this.events = { };
 
 			this.options = L.defaults(options, {
 				placeholder: '',
@@ -4925,8 +4993,9 @@ function LuCI2()
 				opt:    this.options.optional
 			};
 
-			for (var evname in this.events)
-				elem.on(evname, evdata, this.events[evname]);
+			if (this.events)
+				for (var evname in this.events)
+					elem.on(evname, evdata, this.events[evname]);
 
 			if (typeof(this.options.datatype) == 'undefined' && $.isEmptyObject(this.rdependency))
 				return elem;
@@ -5102,12 +5171,6 @@ function LuCI2()
 			}
 
 			return false;
-		},
-
-		on: function(evname, evfunc)
-		{
-			this.events[evname] = evfunc;
-			return this;
 		}
 	});
 
@@ -6237,12 +6300,12 @@ function LuCI2()
 
 		add: function(name)
 		{
-			this.map.add(this.map.uci_package, this.uci_type, name);
+			return this.map.add(this.map.uci_package, this.uci_type, name);
 		},
 
 		remove: function(sid)
 		{
-			this.map.remove(this.map.uci_package, sid);
+			return this.map.remove(this.map.uci_package, sid);
 		},
 
 		_ev_add: function(ev)
@@ -6261,7 +6324,13 @@ function LuCI2()
 
 			self.active_panel = -1;
 			self.map.save();
-			self.add(name);
+
+			ev.data.sid  = self.add(name);
+			ev.data.type = self.uci_type;
+			ev.data.name = name;
+
+			self.trigger('add', ev);
+
 			self.map.redraw();
 
 			L.ui.restoreScrollTop();
@@ -6273,6 +6342,8 @@ function LuCI2()
 			var sid  = ev.data.sid;
 
 			L.ui.saveScrollTop();
+
+			self.trigger('remove', ev);
 
 			self.map.save();
 			self.remove(sid);
@@ -6928,6 +6999,28 @@ function LuCI2()
 			self.active_tab = parseInt(ev.target.getAttribute('data-luci2-tab-index'));
 		},
 
+		_ev_apply: function(ev)
+		{
+			var self = ev.data.self;
+
+			self.trigger('apply', ev);
+		},
+
+		_ev_save: function(ev)
+		{
+			var self = ev.data.self;
+
+			self.trigger('save', ev);
+		},
+
+		_ev_reset: function(ev)
+		{
+			var self = ev.data.self;
+
+			self.trigger('reset', ev);
+			self.reset();
+		},
+
 		_render_tab_head: function(tab_index)
 		{
 			var section = this.sections[tab_index];
@@ -7002,16 +7095,20 @@ function LuCI2()
 
 		_render_footer: function()
 		{
+			var evdata = {
+				self: this
+			};
+
 			return $('<div />')
 				.addClass('panel panel-default panel-body text-right')
 				.append($('<div />')
 					.addClass('btn-group')
 					.append(L.ui.button(L.tr('Save & Apply'), 'primary')
-						.click({ self: this }, function(ev) {  }))
+						.click(evdata, this._ev_apply))
 					.append(L.ui.button(L.tr('Save'), 'default')
-						.click({ self: this }, function(ev) { ev.data.self.send(); }))
+						.click(evdata, this._ev_save))
 					.append(L.ui.button(L.tr('Reset'), 'default')
-						.click({ self: this }, function(ev) { ev.data.self.insertInto(ev.data.self.target); })));
+						.click(evdata, this._ev_reset)));
 		},
 
 		render: function()
@@ -7172,6 +7269,21 @@ function LuCI2()
 			});
 		},
 
+		reset: function()
+		{
+			var self = this;
+			var packages = { };
+
+			for (var i = 0; i < this.sections.length; i++)
+				this.sections[i].ucipackages(packages);
+
+			packages[this.uci_package] = true;
+
+			L.uci.unload(L.toArray(packages));
+
+			return self.insertInto(self.target);
+		},
+
 		insertInto: function(id)
 		{
 			var self = this;
@@ -7191,16 +7303,45 @@ function LuCI2()
 	});
 
 	this.cbi.Modal = this.cbi.Map.extend({
+		_ev_apply: function(ev)
+		{
+			var self = ev.data.self;
+
+			self.trigger('apply', ev);
+		},
+
+		_ev_save: function(ev)
+		{
+			var self = ev.data.self;
+
+			self.send().then(function() {
+				self.trigger('save', ev);
+				self.close();
+			});
+		},
+
+		_ev_reset: function(ev)
+		{
+			var self = ev.data.self;
+
+			self.trigger('close', ev);
+			self.close();
+		},
+
 		_render_footer: function()
 		{
+			var evdata = {
+				self: this
+			};
+
 			return $('<div />')
 				.addClass('btn-group')
 				.append(L.ui.button(L.tr('Save & Apply'), 'primary')
-					.click({ self: this }, function(ev) {  }))
+					.click(evdata, this._ev_apply))
 				.append(L.ui.button(L.tr('Save'), 'default')
-					.click({ self: this }, function(ev) { ev.data.self.send(); }))
+					.click(evdata, this._ev_save))
 				.append(L.ui.button(L.tr('Cancel'), 'default')
-					.click({ self: this }, function(ev) { L.ui.dialog(false); }));
+					.click(evdata, this._ev_reset));
 		},
 
 		render: function()
@@ -7238,6 +7379,11 @@ function LuCI2()
 
 				L.ui.loading(false);
 			});
+		},
+
+		close: function()
+		{
+			L.ui.dialog(false);
 		}
 	});
 };
