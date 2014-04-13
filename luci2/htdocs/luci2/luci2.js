@@ -4611,8 +4611,7 @@ function LuCI2()
 
 		'ipaddr': function()
 		{
-			if (validation.types['ip4addr'].apply(this) ||
-				validation.types['ip6addr'].apply(this))
+			if (L.parseIPv4(this) || L.parseIPv6(this))
 				return true;
 
 			validation.i18n('Must be a valid IP address');
@@ -4621,17 +4620,8 @@ function LuCI2()
 
 		'ip4addr': function()
 		{
-			if (this.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(\/(\S+))?$/))
-			{
-				if ((RegExp.$1 >= 0) && (RegExp.$1 <= 255) &&
-				    (RegExp.$2 >= 0) && (RegExp.$2 <= 255) &&
-				    (RegExp.$3 >= 0) && (RegExp.$3 <= 255) &&
-				    (RegExp.$4 >= 0) && (RegExp.$4 <= 255) &&
-				    ((RegExp.$6.indexOf('.') < 0)
-				      ? ((RegExp.$6 >= 0) && (RegExp.$6 <= 32))
-				      : (validation.types['ip4addr'].apply(RegExp.$6))))
-					return true;
-			}
+			if (L.parseIPv4(this))
+				return true;
 
 			validation.i18n('Must be a valid IPv4 address');
 			return false;
@@ -4639,62 +4629,74 @@ function LuCI2()
 
 		'ip6addr': function()
 		{
-			if (this.match(/^([a-fA-F0-9:.]+)(\/(\d+))?$/))
-			{
-				if (!RegExp.$2 || ((RegExp.$3 >= 0) && (RegExp.$3 <= 128)))
-				{
-					var addr = RegExp.$1;
-
-					if (addr == '::')
-					{
-						return true;
-					}
-
-					if (addr.indexOf('.') > 0)
-					{
-						var off = addr.lastIndexOf(':');
-
-						if (!(off && validation.types['ip4addr'].apply(addr.substr(off+1))))
-						{
-							validation.i18n('Must be a valid IPv6 address');
-							return false;
-						}
-
-						addr = addr.substr(0, off) + ':0:0';
-					}
-
-					if (addr.indexOf('::') >= 0)
-					{
-						var colons = 0;
-						var fill = '0';
-
-						for (var i = 1; i < (addr.length-1); i++)
-							if (addr.charAt(i) == ':')
-								colons++;
-
-						if (colons > 7)
-						{
-							validation.i18n('Must be a valid IPv6 address');
-							return false;
-						}
-
-						for (var i = 0; i < (7 - colons); i++)
-							fill += ':0';
-
-						if (addr.match(/^(.*?)::(.*?)$/))
-							addr = (RegExp.$1 ? RegExp.$1 + ':' : '') + fill +
-								   (RegExp.$2 ? ':' + RegExp.$2 : '');
-					}
-
-					if (addr.match(/^(?:[a-fA-F0-9]{1,4}:){7}[a-fA-F0-9]{1,4}$/) != null)
-						return true;
-
-					validation.i18n('Must be a valid IPv6 address');
-					return false;
-				}
-			}
+			if (L.parseIPv6(this))
+				return true;
 
 			validation.i18n('Must be a valid IPv6 address');
+			return false;
+		},
+
+		'netmask4': function()
+		{
+			if (L.isNetmask(L.parseIPv4(this)))
+				return true;
+
+			validation.i18n('Must be a valid IPv4 netmask');
+			return false;
+		},
+
+		'netmask6': function()
+		{
+			if (L.isNetmask(L.parseIPv6(this)))
+				return true;
+
+			validation.i18n('Must be a valid IPv6 netmask6');
+			return false;
+		},
+
+		'cidr4': function()
+		{
+			if (this.match(/^([0-9.]+)\/(\d{1,2})$/))
+				if (RegExp.$2 <= 32 && L.parseIPv4(RegExp.$1))
+					return true;
+
+			validation.i18n('Must be a valid IPv4 prefix');
+			return false;
+		},
+
+		'cidr6': function()
+		{
+			if (this.match(/^([a-fA-F0-9:.]+)\/(\d{1,3})$/))
+				if (RegExp.$2 <= 128 && L.parseIPv6(RegExp.$1))
+					return true;
+
+			validation.i18n('Must be a valid IPv6 prefix');
+			return false;
+		},
+
+		'ipmask4': function()
+		{
+			if (this.match(/^([0-9.]+)\/([0-9.]+)$/))
+			{
+				var addr = RegExp.$1, mask = RegExp.$2;
+				if (L.parseIPv4(addr) && L.isNetmask(L.parseIPv4(mask)))
+					return true;
+			}
+
+			validation.i18n('Must be a valid IPv4 address/netmask pair');
+			return false;
+		},
+
+		'ipmask6': function()
+		{
+			if (this.match(/^([a-fA-F0-9:.]+)\/([a-fA-F0-9:.]+)$/))
+			{
+				var addr = RegExp.$1, mask = RegExp.$2;
+				if (L.parseIPv6(addr) && L.isNetmask(L.parseIPv6(mask)))
+					return true;
+			}
+
+			validation.i18n('Must be a valid IPv6 address/netmask pair');
 			return false;
 		},
 
