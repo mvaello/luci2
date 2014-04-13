@@ -7273,9 +7273,8 @@ function LuCI2()
 			});
 		},
 
-		reset: function()
+		revert: function()
 		{
-			var self = this;
 			var packages = { };
 
 			for (var i = 0; i < this.sections.length; i++)
@@ -7284,6 +7283,13 @@ function LuCI2()
 			packages[this.uci_package] = true;
 
 			L.uci.unload(L.toArray(packages));
+		},
+
+		reset: function()
+		{
+			var self = this;
+
+			self.revert();
 
 			return self.insertInto(self.target);
 		},
@@ -7329,6 +7335,7 @@ function LuCI2()
 			var self = ev.data.self;
 
 			self.trigger('close', ev);
+			self.revert();
 			self.close();
 		},
 
