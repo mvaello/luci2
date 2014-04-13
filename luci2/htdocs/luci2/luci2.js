@@ -5099,13 +5099,25 @@ function LuCI2()
 			if (typeof(a) != typeof(b))
 				return true;
 
-			if (typeof(a) == 'object')
+			if ($.isArray(a))
 			{
 				if (a.length != b.length)
 					return true;
 
 				for (var i = 0; i < a.length; i++)
 					if (a[i] != b[i])
+						return true;
+
+				return false;
+			}
+			else if ($.isPlainObject(a))
+			{
+				for (var k in a)
+					if (!(k in b))
+						return true;
+
+				for (var k in b)
+					if (!(k in a) || a[k] !== b[k])
 						return true;
 
 				return false;
