@@ -1483,7 +1483,9 @@ function LuCI2()
 		_fetch_protocols: function()
 		{
 			var self = L.NetworkModel;
-			var deferreds = [ ];
+			var deferreds = [
+				self._fetch_protocol('none')
+			];
 
 			for (var proto in self._cache.protolist)
 				deferreds.push(self._fetch_protocol(proto));
