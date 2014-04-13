@@ -6066,11 +6066,11 @@ function LuCI2()
 				$('<li />')
 					.append($('<label />')
 						.addClass(itype + ' inline text-muted')
-						.append($('<input />')
+						.append(this.validator(sid, $('<input />')
 							.attr('name', itype + id)
 							.attr('type', itype)
 							.attr('value', '')
-							.prop('checked', $.isEmptyObject(check)))
+							.prop('checked', $.isEmptyObject(check)), true))
 						.append(L.tr('unspecified')))
 					.appendTo(ul);
 			}
