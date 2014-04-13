@@ -7053,6 +7053,7 @@ function LuCI2()
 			if (this.options.addremove !== false || this.options.sortable)
 			{
 				row.append($('<td />')
+					.css('width', '1%')
 					.addClass('text-right')
 					.append($('<div />')
 						.addClass('btn-group')
