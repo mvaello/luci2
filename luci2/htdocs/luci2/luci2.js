@@ -2737,6 +2737,30 @@ function LuCI2()
 			return dev.getTrafficHistory();
 		},
 
+		renderBadge: function()
+		{
+			var badge = $('<span />')
+				.addClass('badge')
+				.text('%s: '.format(this.name()));
+
+			var dev = this.getDevice();
+			var subdevs = this.getSubdevices();
+
+			if (subdevs.length)
+				for (var j = 0; j < subdevs.length; j++)
+					badge.append($('<img />')
+						.attr('src', subdevs[j].icon())
+						.attr('title', '%s (%s)'.format(subdevs[j].description(), subdevs[j].name() || '?')));
+			else if (dev)
+				badge.append($('<img />')
+					.attr('src', dev.icon())
+					.attr('title', '%s (%s)'.format(dev.description(), dev.name() || '?')));
+			else
+				badge.append($('<em />').text(L.tr('(No devices attached)')));
+
+			return badge;
+		},
+
 		setDevices: function(devs)
 		{
 			var dev = this.getPhysdev();
@@ -6010,30 +6034,16 @@ function LuCI2()
 			for (var i = 0; i < interfaces.length; i++)
 			{
 				var iface = interfaces[i];
-				var badge = $('<span />')
-					.addClass('badge')
-					.text('%s: '.format(iface.name()));
-
-				var dev = iface.getDevice();
-				var subdevs = iface.getSubdevices();
-
-				if (subdevs.length)
-					for (var j = 0; j < subdevs.length; j++)
-						badge.append(this._device_icon(subdevs[j]));
-				else if (dev)
-					badge.append(this._device_icon(dev));
-				else
-					badge.append($('<em />').text(L.tr('(No devices attached)')));
 
 				$('<li />')
 					.append($('<label />')
 						.addClass(itype + ' inline')
-						.append($('<input />')
+						.append(this.validator(sid, $('<input />')
 							.attr('name', itype + id)
 							.attr('type', itype)
 							.attr('value', iface.name())
-							.prop('checked', !!check[iface.name()]))
-						.append(badge))
+							.prop('checked', !!check[iface.name()]), true))
+						.append(iface.renderBadge()))
 					.appendTo(ul);
 			}
 
