@@ -485,6 +485,152 @@ function LuCI2()
 		return n;
 	};
 
+	this.toColor = function(str)
+	{
+		if (typeof(str) != 'string' || str.length == 0)
+			return '#CCCCCC';
+
+		if (str == 'wan')
+			return '#F09090';
+		else if (str == 'lan')
+			return '#90F090';
+
+		var i = 0, hash = 0;
+
+		while (i < str.length)
+			hash = str.charCodeAt(i++) + ((hash << 5) - hash);
+
+		var r = (hash & 0xFF) % 128;
+		var g = ((hash >> 8) & 0xFF) % 128;
+
+		var min = 0;
+		var max = 128;
+
+		if ((r + g) < 128)
+			min = 128 - r - g;
+		else
+			max = 255 - r - g;
+
+		var b = min + (((hash >> 16) & 0xFF) % (max - min));
+
+		return '#%02X%02X%02X'.format(0xFF - r, 0xFF - g, 0xFF - b);
+	};
+
+	this.parseIPv4 = function(str)
+	{
+		if ((typeof(str) != 'string' && !(str instanceof String)) ||
+		    !str.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/))
+			return undefined;
+
+		var num = [ ];
+		var parts = str.split(/\./);
+
+		for (var i = 0; i < parts.length; i++)
+		{
+			var n = parseInt(parts[i], 10);
+			if (isNaN(n) || n > 255)
+				return undefined;
+
+			num.push(n);
+		}
+
+		return num;
+	};
+
+	this.parseIPv6 = function(str)
+	{
+		if ((typeof(str) != 'string' && !(str instanceof String)) ||
+		    !str.match(/^[a-fA-F0-9:]+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})?$/))
+			return undefined;
+
+		var parts = str.split(/::/);
+		if (parts.length == 0 || parts.length > 2)
+			return undefined;
+
+		var lnum = [ ];
+		if (parts[0].length > 0)
+		{
+			var left = parts[0].split(/:/);
+			for (var i = 0; i < left.length; i++)
+			{
+				var n = parseInt(left[i], 16);
+				if (isNaN(n))
+					return undefined;
+
+				lnum.push((n / 256) >> 0);
+				lnum.push(n % 256);
+			}
+		}
+
+		var rnum = [ ];
+		if (parts.length > 1 && parts[1].length > 0)
+		{
+			var right = parts[1].split(/:/);
+
+			for (var i = 0; i < right.length; i++)
+			{
+				if (right[i].indexOf('.') > 0)
+				{
+					var addr = L.parseIPv4(right[i]);
+					if (!addr)
+						return undefined;
+
+					rnum.push.apply(rnum, addr);
+					continue;
+				}
+
+				var n = parseInt(right[i], 16);
+				if (isNaN(n))
+					return undefined;
+
+				rnum.push((n / 256) >> 0);
+				rnum.push(n % 256);
+			}
+		}
+
+		if (rnum.length > 0 && (lnum.length + rnum.length) > 15)
+			return undefined;
+
+		var num = [ ];
+
+		num.push.apply(num, lnum);
+
+		for (var i = 0; i < (16 - lnum.length - rnum.length); i++)
+			num.push(0);
+
+		num.push.apply(num, rnum);
+
+		if (num.length > 16)
+			return undefined;
+
+		return num;
+	};
+
+	this.isNetmask = function(addr)
+	{
+		if (!$.isArray(addr))
+			return false;
+
+		var c;
+
+		for (c = 0; (c < addr.length) && (addr[c] == 255); c++);
+
+		if (c == addr.length)
+			return true;
+
+		if ((addr[c] == 254) || (addr[c] == 252) || (addr[c] == 248) ||
+			(addr[c] == 240) || (addr[c] == 224) || (addr[c] == 192) ||
+			(addr[c] == 128) || (addr[c] == 0))
+		{
+			for (c++; (c < addr.length) && (addr[c] == 0); c++);
+
+			if (c == addr.length)
+				return true;
+		}
+
+		return false;
+	};
+
 	this.globals = {
 		timeout:  15000,
 		resource: '/luci2',
