@@ -6482,6 +6482,11 @@ function LuCI2()
 			return true;
 		},
 
+		sort: function(section1, section2)
+		{
+			return 0;
+		},
+
 		sections: function(cb)
 		{
 			var s1 = L.uci.sections(this.map.uci_package);
@@ -6491,6 +6496,8 @@ function LuCI2()
 				if (s1[i]['.type'] == this.uci_type)
 					if (this.filter(s1[i]))
 						s2.push(s1[i]);
+
+			s2.sort(this.sort);
 
 			if (typeof(cb) == 'function')
 				for (var i = 0; i < s2.length; i++)
