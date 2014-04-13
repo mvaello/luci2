@@ -7012,7 +7012,9 @@ function LuCI2()
 		{
 			var self = ev.data.self;
 
-			self.trigger('save', ev);
+			self.send().then(function() {
+				self.trigger('save', ev);
+			});
 		},
 
 		_ev_reset: function(ev)
