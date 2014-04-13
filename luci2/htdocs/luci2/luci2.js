@@ -5013,7 +5013,6 @@ function LuCI2()
 				.addClass('label label-danger');
 
 			i.widget = $('<div />')
-
 				.append(this.widget(sid))
 				.append(i.error)
 				.appendTo(i.top);
