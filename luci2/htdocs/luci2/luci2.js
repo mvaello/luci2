@@ -1109,6 +1109,35 @@ function LuCI2()
 			return this.set(conf, sid, opt, undefined);
 		},
 
+		get_first: function(conf, type, opt)
+		{
+			var sid = undefined;
+
+			L.uci.sections(conf, type, function(s) {
+				if (typeof(sid) != 'string')
+					sid = s['.name'];
+			});
+
+			return this.get(conf, sid, opt);
+		},
+
+		set_first: function(conf, type, opt, val)
+		{
+			var sid = undefined;
+
+			L.uci.sections(conf, type, function(s) {
+				if (typeof(sid) != 'string')
+					sid = s['.name'];
+			});
+
+			return this.set(conf, sid, opt, val);
+		},
+
+		unset_first: function(conf, type, opt)
+		{
+			return this.set_first(conf, type, opt, undefined);
+		},
+
 		_reload: function()
 		{
 			var pkgs = [ ];
