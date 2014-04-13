@@ -5989,7 +5989,7 @@ function LuCI2()
 			return $('<div />')
 				.addClass('form-control-static')
 				.attr('id', this.id(sid))
-				.html(this.ucivalue(sid));
+				.html(this.ucivalue(sid) || this.label('placeholder'));
 		},
 
 		formvalue: function(sid)
