@@ -274,7 +274,7 @@ L.ui.view.extend({
 
 	renderInterfaceForm: function(network)
 	{
-		var m = new L.cbi.Modal('network', {
+		var m = new L.cbi.Map('network', {
 			tabbed:      true,
 			caption:     'Interface config',
 			description: 'I can config interface!!!!'

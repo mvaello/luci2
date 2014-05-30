@@ -1,7 +1,7 @@
 /*
 	LuCI2 - OpenWrt Web Interface
 
-	Copyright 2013 Jo-Philipp Wich <jow@openwrt.org>
+	Copyright 2013-2014 Jo-Philipp Wich <jow@openwrt.org>
 
 	Licensed under the Apache License, Version 2.0 (the "License");
 	you may not use this file except in compliance with the License.
@@ -829,39 +829,50 @@ function LuCI2()
 			};
 		},
 
-		_load: L.rpc.declare({
+		callLoad: L.rpc.declare({
 			object: 'uci',
 			method: 'get',
 			params: [ 'config' ],
 			expect: { values: { } }
 		}),
 
-		_order: L.rpc.declare({
+		callOrder: L.rpc.declare({
 			object: 'uci',
 			method: 'order',
 			params: [ 'config', 'sections' ]
 		}),
 
-		_add: L.rpc.declare({
+		callAdd: L.rpc.declare({
 			object: 'uci',
 			method: 'add',
 			params: [ 'config', 'type', 'name', 'values' ],
 			expect: { section: '' }
 		}),
 
-		_set: L.rpc.declare({
+		callSet: L.rpc.declare({
 			object: 'uci',
 			method: 'set',
 			params: [ 'config', 'section', 'values' ]
 		}),
 
-		_delete: L.rpc.declare({
+		callDelete: L.rpc.declare({
 			object: 'uci',
 			method: 'delete',
 			params: [ 'config', 'section', 'options' ]
 		}),
 
-		_newid: function(conf)
+		callApply: L.rpc.declare({
+			object: 'uci',
+			method: 'apply',
+			params: [ 'timeout', 'rollback' ]
+		}),
+
+		callConfirm: L.rpc.declare({
+			object: 'uci',
+			method: 'confirm'
+		}),
+
+		createSID: function(conf)
 		{
 			var v = this.state.values;
 			var n = this.state.creates;
@@ -872,6 +883,51 @@ function LuCI2()
 			} while ((n[conf] && n[conf][sid]) || (v[conf] && v[conf][sid]));
 
 			return sid;
+		},
+
+		reorderSections: function()
+		{
+			var v = this.state.values;
+			var n = this.state.creates;
+			var r = this.state.reorder;
+
+			if ($.isEmptyObject(r))
+				return L.deferrable();
+
+			L.rpc.batch();
+
+			/*
+			 gather all created and existing sections, sort them according
+			 to their index value and issue an uci order call
+			*/
+			for (var c in r)
+			{
+				var o = [ ];
+
+				if (n[c])
+					for (var s in n[c])
+						o.push(n[c][s]);
+
+				for (var s in v[c])
+					o.push(v[c][s]);
+
+				if (o.length > 0)
+				{
+					o.sort(function(a, b) {
+						return (a['.index'] - b['.index']);
+					});
+
+					var sids = [ ];
+
+					for (var i = 0; i < o.length; i++)
+						sids.push(o[i]['.name']);
+
+					this.callOrder(c, sids);
+				}
+			}
+
+			this.state.reorder = { };
+			return L.rpc.flush();
 		},
 
 		load: function(packages)
@@ -890,7 +946,7 @@ function LuCI2()
 				{
 					pkgs.push(packages[i]);
 					seen[packages[i]] = true;
-					self._load(packages[i]);
+					self.callLoad(packages[i]);
 				}
 
 			return L.rpc.flush().then(function(responses) {
@@ -918,7 +974,7 @@ function LuCI2()
 		add: function(conf, type, name)
 		{
 			var n = this.state.creates;
-			var sid = this._newid(conf);
+			var sid = this.createSID(conf);
 
 			if (!n[conf])
 				n[conf] = { };
@@ -1138,63 +1194,6 @@ function LuCI2()
 			return this.set_first(conf, type, opt, undefined);
 		},
 
-		_reload: function()
-		{
-			var pkgs = [ ];
-
-			for (var pkg in this.state.values)
-				pkgs.push(pkg);
-
-			this.init();
-
-			return this.load(pkgs);
-		},
-
-		_reorder: function()
-		{
-			var v = this.state.values;
-			var n = this.state.creates;
-			var r = this.state.reorder;
-
-			if ($.isEmptyObject(r))
-				return L.deferrable();
-
-			L.rpc.batch();
-
-			/*
-			 gather all created and existing sections, sort them according
-			 to their index value and issue an uci order call
-			*/
-			for (var c in r)
-			{
-				var o = [ ];
-
-				if (n[c])
-					for (var s in n[c])
-						o.push(n[c][s]);
-
-				for (var s in v[c])
-					o.push(v[c][s]);
-
-				if (o.length > 0)
-				{
-					o.sort(function(a, b) {
-						return (a['.index'] - b['.index']);
-					});
-
-					var sids = [ ];
-
-					for (var i = 0; i < o.length; i++)
-						sids.push(o[i]['.name']);
-
-					this._order(c, sids);
-				}
-			}
-
-			this.state.reorder = { };
-			return L.rpc.flush();
-		},
-
 		swap: function(conf, sid1, sid2)
 		{
 			var s1 = this.get(conf, sid1);
@@ -1248,7 +1247,7 @@ function LuCI2()
 
 						snew.push(n[conf][sid]);
 
-						self._add(r.config, r.type, r.name, r.values);
+						self.callAdd(r.config, r.type, r.name, r.values);
 					}
 
 					pkgs[conf] = true;
@@ -1258,7 +1257,7 @@ function LuCI2()
 				for (var conf in c)
 				{
 					for (var sid in c[conf])
-						self._set(conf, sid, c[conf][sid]);
+						self.callSet(conf, sid, c[conf][sid]);
 
 					pkgs[conf] = true;
 				}
@@ -1269,7 +1268,7 @@ function LuCI2()
 					for (var sid in d[conf])
 					{
 						var o = d[conf][sid];
-						self._delete(conf, sid, (o === true) ? undefined : o);
+						self.callDelete(conf, sid, (o === true) ? undefined : o);
 					}
 
 					pkgs[conf] = true;
@@ -1283,7 +1282,7 @@ function LuCI2()
 				for (var i = 0; i < snew.length; i++)
 					snew[i]['.name'] = responses[i];
 
-				return self._reorder();
+				return self.reorderSections();
 			}).then(function() {
 				pkgs = L.toArray(pkgs);
 
@@ -1292,17 +1291,6 @@ function LuCI2()
 				return self.load(pkgs);
 			});
 		},
-
-		_apply: L.rpc.declare({
-			object: 'uci',
-			method: 'apply',
-			params: [ 'timeout', 'rollback' ]
-		}),
-
-		_confirm: L.rpc.declare({
-			object: 'uci',
-			method: 'confirm'
-		}),
 
 		apply: function(timeout)
 		{
@@ -1313,7 +1301,7 @@ function LuCI2()
 			if (typeof(timeout) != 'number' || timeout < 1)
 				timeout = 10;
 
-			self._apply(timeout, true).then(function(rv) {
+			self.callApply(timeout, true).then(function(rv) {
 				if (rv != 0)
 				{
 					deferred.rejectWith(self, [ rv ]);
@@ -1323,7 +1311,7 @@ function LuCI2()
 				var try_deadline = date.getTime() + 1000 * timeout;
 				var try_confirm = function()
 				{
-					return self._confirm().then(function(rv) {
+					return self.callConfirm().then(function(rv) {
 						if (rv != 0)
 						{
 							if (date.getTime() < try_deadline)
@@ -1572,7 +1560,7 @@ function LuCI2()
 	};
 
 	this.NetworkModel = {
-		_device_blacklist: [
+		deviceBlacklist: [
 			/^gre[0-9]+$/,
 			/^gretap[0-9]+$/,
 			/^ifb[0-9]+$/,
@@ -1581,7 +1569,7 @@ function LuCI2()
 			/^wlan[0-9]+\.sta[0-9]+$/
 		],
 
-		_cache_functions: [
+		rpcCacheFunctions: [
 			'protolist', 0, L.rpc.declare({
 				object: 'network',
 				method: 'get_proto_handlers',
@@ -1619,7 +1607,7 @@ function LuCI2()
 			})
 		],
 
-		_fetch_protocol: function(proto)
+		loadProtocolHandler: function(proto)
 		{
 			var url = L.globals.resource + '/proto/' + proto + '.js';
 			var self = L.NetworkModel;
@@ -1641,7 +1629,7 @@ function LuCI2()
 
 					var protoClass = eval(protoConstructorSource);
 
-					self._protos[proto] = new protoClass();
+					self.protocolHandlers[proto] = new protoClass();
 				}
 				catch(e) {
 					alert('Unable to instantiate proto "%s": %s'.format(url, e));
@@ -1655,36 +1643,36 @@ function LuCI2()
 			return def;
 		},
 
-		_fetch_protocols: function()
+		loadProtocolHandlers: function()
 		{
 			var self = L.NetworkModel;
 			var deferreds = [
-				self._fetch_protocol('none')
+				self.loadProtocolHandler('none')
 			];
 
-			for (var proto in self._cache.protolist)
-				deferreds.push(self._fetch_protocol(proto));
+			for (var proto in self.rpcCache.protolist)
+				deferreds.push(self.loadProtocolHandler(proto));
 
 			return $.when.apply($, deferreds);
 		},
 
-		_fetch_swstate: L.rpc.declare({
+		callSwitchInfo: L.rpc.declare({
 			object: 'luci2.network',
 			method: 'switch_info',
 			params: [ 'switch' ],
 			expect: { 'info': { } }
 		}),
 
-		_fetch_swstate_cb: function(responses) {
+		callSwitchInfoCallback: function(responses) {
 			var self = L.NetworkModel;
-			var swlist = self._cache.swlist;
-			var swstate = self._cache.swstate = { };
+			var swlist = self.rpcCache.swlist;
+			var swstate = self.rpcCache.swstate = { };
 
 			for (var i = 0; i < responses.length; i++)
 				swstate[swlist[i]] = responses[i];
 		},
 
-		_fetch_cache_cb: function(level)
+		loadCacheCallback: function(level)
 		{
 			var self = L.NetworkModel;
 			var name = '_fetch_cache_cb_' + level;
@@ -1692,18 +1680,18 @@ function LuCI2()
 			return self[name] || (
 				self[name] = function(responses)
 				{
-					for (var i = 0; i < self._cache_functions.length; i += 3)
-						if (!level || self._cache_functions[i + 1] == level)
-							self._cache[self._cache_functions[i]] = responses.shift();
+					for (var i = 0; i < self.rpcCacheFunctions.length; i += 3)
+						if (!level || self.rpcCacheFunctions[i + 1] == level)
+							self.rpcCache[self.rpcCacheFunctions[i]] = responses.shift();
 
 					if (!level)
 					{
 						L.rpc.batch();
 
-						for (var i = 0; i < self._cache.swlist.length; i++)
-							self._fetch_swstate(self._cache.swlist[i]);
+						for (var i = 0; i < self.rpcCache.swlist.length; i++)
+							self.callSwitchInfo(self.rpcCache.swlist[i]);
 
-						return L.rpc.flush().then(self._fetch_swstate_cb);
+						return L.rpc.flush().then(self.callSwitchInfoCallback);
 					}
 
 					return L.deferrable();
@@ -1711,41 +1699,31 @@ function LuCI2()
 			);
 		},
 
-		_fetch_cache: function(level)
+		loadCache: function(level)
 		{
 			var self = L.NetworkModel;
 
 			return L.uci.load(['network', 'wireless']).then(function() {
 				L.rpc.batch();
 
-				for (var i = 0; i < self._cache_functions.length; i += 3)
-					if (!level || self._cache_functions[i + 1] == level)
-						self._cache_functions[i + 2]();
+				for (var i = 0; i < self.rpcCacheFunctions.length; i += 3)
+					if (!level || self.rpcCacheFunctions[i + 1] == level)
+						self.rpcCacheFunctions[i + 2]();
 
-				return L.rpc.flush().then(self._fetch_cache_cb(level || 0));
+				return L.rpc.flush().then(self.loadCacheCallback(level || 0));
 			});
 		},
 
-		_get: function(pkg, sid, key)
+		isBlacklistedDevice: function(dev)
 		{
-			return L.uci.get(pkg, sid, key);
-		},
-
-		_set: function(pkg, sid, key, val)
-		{
-			return L.uci.set(pkg, sid, key, val);
-		},
-
-		_is_blacklisted: function(dev)
-		{
-			for (var i = 0; i < this._device_blacklist.length; i++)
-				if (dev.match(this._device_blacklist[i]))
+			for (var i = 0; i < this.deviceBlacklist.length; i++)
+				if (dev.match(this.deviceBlacklist[i]))
 					return true;
 
 			return false;
 		},
 
-		_sort_devices: function(a, b)
+		sortDevicesCallback: function(a, b)
 		{
 			if (a.options.kind < b.options.kind)
 				return -1;
@@ -1760,11 +1738,11 @@ function LuCI2()
 			return 0;
 		},
 
-		_get_dev: function(ifname)
+		getDeviceObject: function(ifname)
 		{
 			var alias = (ifname.charAt(0) == '@');
-			return this._devs[ifname] || (
-				this._devs[ifname] = {
+			return this.deviceObjects[ifname] || (
+				this.deviceObjects[ifname] = {
 					ifname:  ifname,
 					kind:    alias ? 'alias' : 'ethernet',
 					type:    alias ? 0 : 1,
@@ -1774,29 +1752,29 @@ function LuCI2()
 			);
 		},
 
-		_get_iface: function(name)
+		getInterfaceObject: function(name)
 		{
-			return this._ifaces[name] || (
-				this._ifaces[name] = {
+			return this.interfaceObjects[name] || (
+				this.interfaceObjects[name] = {
 					name:    name,
-					proto:   this._protos.none,
+					proto:   this.protocolHandlers.none,
 					changed: { }
 				}
 			);
 		},
 
-		_parse_devices: function()
+		loadDevicesCallback: function()
 		{
 			var self = L.NetworkModel;
 			var wificount = { };
 
-			for (var ifname in self._cache.devstate)
+			for (var ifname in self.rpcCache.devstate)
 			{
-				if (self._is_blacklisted(ifname))
+				if (self.isBlacklistedDevice(ifname))
 					continue;
 
-				var dev = self._cache.devstate[ifname];
-				var entry = self._get_dev(ifname);
+				var dev = self.rpcCache.devstate[ifname];
+				var entry = self.getDeviceObject(ifname);
 
 				entry.up = dev.up;
 
@@ -1813,14 +1791,14 @@ function LuCI2()
 				}
 			}
 
-			for (var i = 0; i < self._cache.devlist.length; i++)
+			for (var i = 0; i < self.rpcCache.devlist.length; i++)
 			{
-				var dev = self._cache.devlist[i];
+				var dev = self.rpcCache.devlist[i];
 
-				if (self._is_blacklisted(dev.device))
+				if (self.isBlacklistedDevice(dev.device))
 					continue;
 
-				var entry = self._get_dev(dev.device);
+				var entry = self.getDeviceObject(dev.device);
 
 				entry.up   = dev.is_up;
 				entry.type = dev.type;
@@ -1854,7 +1832,7 @@ function LuCI2()
 
 				if (s['.type'] == 'device' && s.name)
 				{
-					var entry = self._get_dev(s.name);
+					var entry = self.getDeviceObject(s.name);
 
 					switch (s.type)
 					{
@@ -1871,11 +1849,11 @@ function LuCI2()
 					var ifnames = L.toArray(s.ifname);
 
 					for (var j = 0; j < ifnames.length; j++)
-						self._get_dev(ifnames[j]);
+						self.getDeviceObject(ifnames[j]);
 
 					if (s['.name'] != 'loopback')
 					{
-						var entry = self._get_dev('@%s'.format(s['.name']));
+						var entry = self.getDeviceObject('@%s'.format(s['.name']));
 
 						entry.type = 0;
 						entry.kind = 'alias';
@@ -1884,7 +1862,7 @@ function LuCI2()
 				}
 				else if (s['.type'] == 'switch_vlan' && s.device)
 				{
-					var sw = self._cache.swstate[s.device];
+					var sw = self.rpcCache.swstate[s.device];
 					var vid = parseInt(s.vid || s.vlan);
 					var ports = L.toArray(s.ports);
 
@@ -1913,7 +1891,7 @@ function LuCI2()
 					if (!ifname)
 						continue;
 
-					var entry = self._get_dev(ifname);
+					var entry = self.getDeviceObject(ifname);
 
 					entry.kind = 'vlan';
 					entry.sid  = sid;
@@ -1935,9 +1913,9 @@ function LuCI2()
 					var id = 'radio%d.network%d'.format(r, n);
 					var ifname = id;
 
-					if (self._cache.wifistate[s.device])
+					if (self.rpcCache.wifistate[s.device])
 					{
-						var ifcs = self._cache.wifistate[s.device].interfaces;
+						var ifcs = self.rpcCache.wifistate[s.device].interfaces;
 						for (var ifc in ifcs)
 						{
 							if (ifcs[ifc].section == sid)
@@ -1948,7 +1926,7 @@ function LuCI2()
 						}
 					}
 
-					var entry = self._get_dev(ifname);
+					var entry = self.getDeviceObject(ifname);
 
 					entry.kind   = 'wifi';
 					entry.sid    = sid;
@@ -1969,9 +1947,9 @@ function LuCI2()
 				{
 					var ifnames = L.toArray(s.ifname);
 
-					for (var ifname in self._devs)
+					for (var ifname in self.deviceObjects)
 					{
-						var dev = self._devs[ifname];
+						var dev = self.deviceObjects[ifname];
 
 						if (dev.kind != 'wifi')
 							continue;
@@ -1981,7 +1959,7 @@ function LuCI2()
 							ifnames.push(ifname);
 					}
 
-					entry = self._get_dev('br-%s'.format(s['.name']));
+					entry = self.getDeviceObject('br-%s'.format(s['.name']));
 					entry.type  = 1;
 					entry.kind  = 'bridge';
 					entry.sid   = sid;
@@ -1990,7 +1968,7 @@ function LuCI2()
 			}
 		},
 
-		_parse_interfaces: function()
+		loadInterfacesCallback: function()
 		{
 			var self = L.NetworkModel;
 			var net = L.uci.sections('network');
@@ -2002,17 +1980,17 @@ function LuCI2()
 
 				if (s['.type'] == 'interface' && !s['.anonymous'] && s.proto)
 				{
-					var entry = self._get_iface(s['.name']);
-					var proto = self._protos[s.proto] || self._protos.none;
+					var entry = self.getInterfaceObject(s['.name']);
+					var proto = self.protocolHandlers[s.proto] || self.protocolHandlers.none;
 
 					var l3dev = undefined;
 					var l2dev = undefined;
 
 					var ifnames = L.toArray(s.ifname);
 
-					for (var ifname in self._devs)
+					for (var ifname in self.deviceObjects)
 					{
-						var dev = self._devs[ifname];
+						var dev = self.deviceObjects[ifname];
 
 						if (dev.kind != 'wifi')
 							continue;
@@ -2041,11 +2019,11 @@ function LuCI2()
 				}
 			}
 
-			for (var i = 0; i < self._cache.ifstate.length; i++)
+			for (var i = 0; i < self.rpcCache.ifstate.length; i++)
 			{
-				var iface = self._cache.ifstate[i];
-				var entry = self._get_iface(iface['interface']);
-				var proto = self._protos[iface.proto] || self._protos.none;
+				var iface = self.rpcCache.ifstate[i];
+				var entry = self.getInterfaceObject(iface['interface']);
+				var proto = self.protocolHandlers[iface.proto] || self.protocolHandlers.none;
 
 				/* this is a virtual interface, either deleted from config but
 				   not applied yet or set up from external tools (6rd) */
@@ -2062,53 +2040,53 @@ function LuCI2()
 		{
 			var self = this;
 
-			if (self._cache)
+			if (self.rpcCache)
 				return L.deferrable();
 
-			self._cache  = { };
-			self._devs   = { };
-			self._ifaces = { };
-			self._protos = { };
+			self.rpcCache         = { };
+			self.deviceObjects    = { };
+			self.interfaceObjects = { };
+			self.protocolHandlers = { };
 
-			return self._fetch_cache()
-				.then(self._fetch_protocols)
-				.then(self._parse_devices)
-				.then(self._parse_interfaces);
+			return self.loadCache()
+				.then(self.loadProtocolHandlers)
+				.then(self.loadDevicesCallback)
+				.then(self.loadInterfacesCallback);
 		},
 
 		update: function()
 		{
-			delete this._cache;
+			delete this.rpcCache;
 			return this.init();
 		},
 
 		refreshInterfaceStatus: function()
 		{
-			return this._fetch_cache(1).then(this._parse_interfaces);
+			return this.loadCache(1).then(this.loadInterfacesCallback);
 		},
 
 		refreshDeviceStatus: function()
 		{
-			return this._fetch_cache(2).then(this._parse_devices);
+			return this.loadCache(2).then(this.loadDevicesCallback);
 		},
 
 		refreshStatus: function()
 		{
-			return this._fetch_cache(1)
-				.then(this._fetch_cache(2))
-				.then(this._parse_devices)
-				.then(this._parse_interfaces);
+			return this.loadCache(1)
+				.then(this.loadCache(2))
+				.then(this.loadDevicesCallback)
+				.then(this.loadInterfacesCallback);
 		},
 
 		getDevices: function()
 		{
 			var devs = [ ];
 
-			for (var ifname in this._devs)
+			for (var ifname in this.deviceObjects)
 				if (ifname != 'lo')
-					devs.push(new L.NetworkModel.Device(this._devs[ifname]));
+					devs.push(new L.NetworkModel.Device(this.deviceObjects[ifname]));
 
-			return devs.sort(this._sort_devices);
+			return devs.sort(this.sortDevicesCallback);
 		},
 
 		getDeviceByInterface: function(iface)
@@ -2116,31 +2094,31 @@ function LuCI2()
 			if (iface instanceof L.NetworkModel.Interface)
 				iface = iface.name();
 
-			if (this._ifaces[iface])
-				return this.getDevice(this._ifaces[iface].l3dev) ||
-				       this.getDevice(this._ifaces[iface].l2dev);
+			if (this.interfaceObjects[iface])
+				return this.getDevice(this.interfaceObjects[iface].l3dev) ||
+				       this.getDevice(this.interfaceObjects[iface].l2dev);
 
 			return undefined;
 		},
 
 		getDevice: function(ifname)
 		{
-			if (this._devs[ifname])
-				return new L.NetworkModel.Device(this._devs[ifname]);
+			if (this.deviceObjects[ifname])
+				return new L.NetworkModel.Device(this.deviceObjects[ifname]);
 
 			return undefined;
 		},
 
 		createDevice: function(name)
 		{
-			return new L.NetworkModel.Device(this._get_dev(name));
+			return new L.NetworkModel.Device(this.getDeviceObject(name));
 		},
 
 		getInterfaces: function()
 		{
 			var ifaces = [ ];
 
-			for (var name in this._ifaces)
+			for (var name in this.interfaceObjects)
 				if (name != 'loopback')
 					ifaces.push(this.getInterface(name));
 
@@ -2163,9 +2141,9 @@ function LuCI2()
 			if (dev instanceof L.NetworkModel.Device)
 				dev = dev.name();
 
-			for (var name in this._ifaces)
+			for (var name in this.interfaceObjects)
 			{
-				var iface = this._ifaces[name];
+				var iface = this.interfaceObjects[name];
 				if (iface.l2dev == dev || iface.l3dev == dev)
 					ifaces.push(this.getInterface(name));
 			}
@@ -2184,8 +2162,8 @@ function LuCI2()
 
 		getInterface: function(iface)
 		{
-			if (this._ifaces[iface])
-				return new L.NetworkModel.Interface(this._ifaces[iface]);
+			if (this.interfaceObjects[iface])
+				return new L.NetworkModel.Interface(this.interfaceObjects[iface]);
 
 			return undefined;
 		},
@@ -2194,9 +2172,9 @@ function LuCI2()
 		{
 			var rv = [ ];
 
-			for (var proto in this._protos)
+			for (var proto in this.protocolHandlers)
 			{
-				var pr = this._protos[proto];
+				var pr = this.protocolHandlers[proto];
 
 				rv.push({
 					name:        proto,
@@ -2216,11 +2194,11 @@ function LuCI2()
 			});
 		},
 
-		_find_wan: function(ipaddr)
+		findWANByAddr: function(ipaddr)
 		{
-			for (var i = 0; i < this._cache.ifstate.length; i++)
+			for (var i = 0; i < this.rpcCache.ifstate.length; i++)
 			{
-				var ifstate = this._cache.ifstate[i];
+				var ifstate = this.rpcCache.ifstate[i];
 
 				if (!ifstate.route)
 					continue;
@@ -2239,12 +2217,12 @@ function LuCI2()
 
 		findWAN: function()
 		{
-			return this._find_wan('0.0.0.0');
+			return this.findWANByAddr('0.0.0.0');
 		},
 
 		findWAN6: function()
 		{
-			return this._find_wan('::');
+			return this.findWANByAddr('::');
 		},
 
 		resolveAlias: function(ifname)
@@ -2252,7 +2230,7 @@ function LuCI2()
 			if (ifname instanceof L.NetworkModel.Device)
 				ifname = ifname.name();
 
-			var dev = this._devs[ifname];
+			var dev = this.deviceObjects[ifname];
 			var seen = { };
 
 			while (dev && dev.kind == 'alias')
@@ -2261,10 +2239,10 @@ function LuCI2()
 				if (seen[dev.ifname])
 					return undefined;
 
-				var ifc = this._ifaces[dev.sid];
+				var ifc = this.interfaceObjects[dev.sid];
 
 				seen[dev.ifname] = true;
-				dev = ifc ? this._devs[ifc.l3dev] : undefined;
+				dev = ifc ? this.deviceObjects[ifc.l3dev] : undefined;
 			}
 
 			return dev ? this.getDevice(dev.ifname) : undefined;
@@ -2272,7 +2250,7 @@ function LuCI2()
 	};
 
 	this.NetworkModel.Device = Class.extend({
-		_wifi_modes: {
+		wifiModeStrings: {
 			ap: L.tr('Master'),
 			sta: L.tr('Client'),
 			adhoc: L.tr('Ad-Hoc'),
@@ -2280,9 +2258,9 @@ function LuCI2()
 			wds: L.tr('Static WDS')
 		},
 
-		_status: function(key)
+		getStatus: function(key)
 		{
-			var s = L.NetworkModel._cache.devstate[this.options.ifname];
+			var s = L.NetworkModel.rpcCache.devstate[this.options.ifname];
 
 			if (s)
 				return key ? s[key] : s;
@@ -2294,14 +2272,14 @@ function LuCI2()
 		{
 			var sid = this.options.sid;
 			var pkg = (this.options.kind == 'wifi') ? 'wireless' : 'network';
-			return L.NetworkModel._get(pkg, sid, key);
+			return L.uci.get(pkg, sid, key);
 		},
 
 		set: function(key, val)
 		{
 			var sid = this.options.sid;
 			var pkg = (this.options.kind == 'wifi') ? 'wireless' : 'network';
-			return L.NetworkModel._set(pkg, sid, key, val);
+			return L.uci.set(pkg, sid, key, val);
 		},
 
 		init: function()
@@ -2366,7 +2344,7 @@ function LuCI2()
 			case 'wifi':
 				var o = this.options;
 				return L.trc('(Wifi-Mode) "(SSID)" on (radioX)', '%s "%h" on %s').format(
-					o.wmode ? this._wifi_modes[o.wmode] : L.tr('Unknown mode'),
+					o.wmode ? this.wifiModeStrings[o.wmode] : L.tr('Unknown mode'),
 					o.wssid || '?', o.wdev
 				);
 			}
@@ -2389,7 +2367,7 @@ function LuCI2()
 
 		isUp: function()
 		{
-			var l = L.NetworkModel._cache.devlist;
+			var l = L.NetworkModel.rpcCache.devlist;
 
 			for (var i = 0; i < l.length; i++)
 				if (l[i].device == this.options.ifname)
@@ -2429,7 +2407,7 @@ function LuCI2()
 				    net.options.l2dev == this.options.ifname)
 					return true;
 
-				var dev = L.NetworkModel._devs[net.options.l2dev];
+				var dev = L.NetworkModel.deviceObjects[net.options.l2dev];
 				if (dev && dev.kind == 'bridge' && dev.ports)
 					return ($.inArray(this.options.ifname, dev.ports) > -1);
 			}
@@ -2439,7 +2417,7 @@ function LuCI2()
 
 		getMTU: function()
 		{
-			var dev = L.NetworkModel._cache.devstate[this.options.ifname];
+			var dev = L.NetworkModel.rpcCache.devstate[this.options.ifname];
 			if (dev && !isNaN(dev.mtu))
 				return dev.mtu;
 
@@ -2451,7 +2429,7 @@ function LuCI2()
 			if (this.options.type != 1)
 				return undefined;
 
-			var dev = L.NetworkModel._cache.devstate[this.options.ifname];
+			var dev = L.NetworkModel.rpcCache.devstate[this.options.ifname];
 			if (dev && dev.macaddr)
 				return dev.macaddr.toUpperCase();
 
@@ -2465,7 +2443,7 @@ function LuCI2()
 
 		getStatistics: function()
 		{
-			var s = this._status('statistics') || { };
+			var s = this.getStatus('statistics') || { };
 			return {
 				rx_bytes: (s.rx_bytes || 0),
 				tx_bytes: (s.tx_bytes || 0),
@@ -2481,7 +2459,7 @@ function LuCI2()
 			for (var i = 0; i < 120; i++)
 				def[i] = 0;
 
-			var h = L.NetworkModel._cache.bwstate[this.options.ifname] || { };
+			var h = L.NetworkModel.rpcCache.bwstate[this.options.ifname] || { };
 			return {
 				rx_bytes: (h.rx_bytes || def),
 				tx_bytes: (h.tx_bytes || def),
@@ -2540,9 +2518,9 @@ function LuCI2()
 	});
 
 	this.NetworkModel.Interface = Class.extend({
-		_status: function(key)
+		getStatus: function(key)
 		{
-			var s = L.NetworkModel._cache.ifstate;
+			var s = L.NetworkModel.rpcCache.ifstate;
 
 			for (var i = 0; i < s.length; i++)
 				if (s[i]['interface'] == this.options.name)
@@ -2553,12 +2531,12 @@ function LuCI2()
 
 		get: function(key)
 		{
-			return L.NetworkModel._get('network', this.options.name, key);
+			return L.uci.get('network', this.options.name, key);
 		},
 
 		set: function(key, val)
 		{
-			return L.NetworkModel._set('network', this.options.name, key, val);
+			return L.uci.set('network', this.options.name, key, val);
 		},
 
 		name: function()
@@ -2573,7 +2551,7 @@ function LuCI2()
 
 		isUp: function()
 		{
-			return (this._status('up') === true);
+			return (this.getStatus('up') === true);
 		},
 
 		isVirtual: function()
@@ -2584,12 +2562,12 @@ function LuCI2()
 		getProtocol: function()
 		{
 			var prname = this.get('proto') || 'none';
-			return L.NetworkModel._protos[prname] || L.NetworkModel._protos.none;
+			return L.NetworkModel.protocolHandlers[prname] || L.NetworkModel.protocolHandlers.none;
 		},
 
 		getUptime: function()
 		{
-			var uptime = this._status('uptime');
+			var uptime = this.getStatus('uptime');
 			return isNaN(uptime) ? 0 : uptime;
 		},
 
@@ -2613,7 +2591,7 @@ function LuCI2()
 		{
 			var rv = [ ];
 			var dev = this.options.l2dev ?
-				L.NetworkModel._devs[this.options.l2dev] : undefined;
+				L.NetworkModel.deviceObjects[this.options.l2dev] : undefined;
 
 			if (dev && dev.kind == 'bridge' && dev.ports && dev.ports.length)
 				for (var i = 0; i < dev.ports.length; i++)
@@ -2625,7 +2603,7 @@ function LuCI2()
 		getIPv4Addrs: function(mask)
 		{
 			var rv = [ ];
-			var addrs = this._status('ipv4-address');
+			var addrs = this.getStatus('ipv4-address');
 
 			if (addrs)
 				for (var i = 0; i < addrs.length; i++)
@@ -2642,7 +2620,7 @@ function LuCI2()
 			var rv = [ ];
 			var addrs;
 
-			addrs = this._status('ipv6-address');
+			addrs = this.getStatus('ipv6-address');
 
 			if (addrs)
 				for (var i = 0; i < addrs.length; i++)
@@ -2651,7 +2629,7 @@ function LuCI2()
 					else
 						rv.push('%s/%d'.format(addrs[i].address, addrs[i].mask));
 
-			addrs = this._status('ipv6-prefix-assignment');
+			addrs = this.getStatus('ipv6-prefix-assignment');
 
 			if (addrs)
 				for (var i = 0; i < addrs.length; i++)
@@ -2666,7 +2644,7 @@ function LuCI2()
 		getDNSAddrs: function()
 		{
 			var rv = [ ];
-			var addrs = this._status('dns-server');
+			var addrs = this.getStatus('dns-server');
 
 			if (addrs)
 				for (var i = 0; i < addrs.length; i++)
@@ -2678,7 +2656,7 @@ function LuCI2()
 		getIPv4DNS: function()
 		{
 			var rv = [ ];
-			var dns = this._status('dns-server');
+			var dns = this.getStatus('dns-server');
 
 			if (dns)
 				for (var i = 0; i < dns.length; i++)
@@ -2691,7 +2669,7 @@ function LuCI2()
 		getIPv6DNS: function()
 		{
 			var rv = [ ];
-			var dns = this._status('dns-server');
+			var dns = this.getStatus('dns-server');
 
 			if (dns)
 				for (var i = 0; i < dns.length; i++)
@@ -2703,7 +2681,7 @@ function LuCI2()
 
 		getIPv4Gateway: function()
 		{
-			var rt = this._status('route');
+			var rt = this.getStatus('route');
 
 			if (rt)
 				for (var i = 0; i < rt.length; i++)
@@ -2715,7 +2693,7 @@ function LuCI2()
 
 		getIPv6Gateway: function()
 		{
-			var rt = this._status('route');
+			var rt = this.getStatus('route');
 
 			if (rt)
 				for (var i = 0; i < rt.length; i++)
@@ -2809,7 +2787,7 @@ function LuCI2()
 
 		changeProtocol: function(proto)
 		{
-			var pr = L.NetworkModel._protos[proto];
+			var pr = L.NetworkModel.protocolHandlers[proto];
 
 			if (!pr)
 				return;
@@ -3138,28 +3116,28 @@ function LuCI2()
 		},
 
 
-		_acls: { },
+		aclCache: { },
 
-		_fetch_acls: L.rpc.declare({
+		callAccess: L.rpc.declare({
 			object: 'session',
 			method: 'access',
 			expect: { '': { } }
 		}),
 
-		_fetch_acls_cb: function(acls)
+		callAccessCallback: function(acls)
 		{
-			L.session._acls = acls;
+			L.session.aclCache = acls;
 		},
 
 		updateACLs: function()
 		{
-			return L.session._fetch_acls()
-				.then(L.session._fetch_acls_cb);
+			return L.session.callAccess()
+				.then(L.session.callAccessCallback);
 		},
 
 		hasACL: function(scope, object, func)
 		{
-			var acls = L.session._acls;
+			var acls = L.session.aclCache;
 
 			if (typeof(func) == 'undefined')
 				return (acls && acls[scope] && acls[scope][object]);
@@ -3586,7 +3564,7 @@ function LuCI2()
 		}),
 
 
-		_acl_merge_scope: function(acl_scope, scope)
+		mergeACLScope: function(acl_scope, scope)
 		{
 			if ($.isArray(scope))
 			{
@@ -3608,19 +3586,19 @@ function LuCI2()
 			}
 		},
 
-		_acl_merge_permission: function(acl_perm, perm)
+		mergeACLPermission: function(acl_perm, perm)
 		{
 			if ($.isPlainObject(perm))
 			{
 				for (var scope_name in perm)
 				{
 					var acl_scope = acl_perm[scope_name] || (acl_perm[scope_name] = { });
-					this._acl_merge_scope(acl_scope, perm[scope_name]);
+					L.ui.mergeACLScope(acl_scope, perm[scope_name]);
 				}
 			}
 		},
 
-		_acl_merge_group: function(acl_group, group)
+		mergeACLGroup: function(acl_group, group)
 		{
 			if ($.isPlainObject(group))
 			{
@@ -3630,42 +3608,48 @@ function LuCI2()
 				if (group.read)
 				{
 					var acl_perm = acl_group.read || (acl_group.read = { });
-					this._acl_merge_permission(acl_perm, group.read);
+					L.ui.mergeACLPermission(acl_perm, group.read);
 				}
 
 				if (group.write)
 				{
 					var acl_perm = acl_group.write || (acl_group.write = { });
-					this._acl_merge_permission(acl_perm, group.write);
+					L.ui.mergeACLPermission(acl_perm, group.write);
 				}
 			}
 		},
 
-		_acl_merge_tree: function(acl_tree, tree)
+		callACLsCallback: function(trees)
 		{
-			if ($.isPlainObject(tree))
+			var acl_tree = { };
+
+			for (var i = 0; i < trees.length; i++)
 			{
-				for (var group_name in tree)
+				if (!$.isPlainObject(trees[i]))
+					continue;
+
+				for (var group_name in trees[i])
 				{
 					var acl_group = acl_tree[group_name] || (acl_tree[group_name] = { });
-					this._acl_merge_group(acl_group, tree[group_name]);
+					L.ui.mergeACLGroup(acl_group, trees[i][group_name]);
 				}
 			}
+
+			return acl_tree;
 		},
 
-		listAvailableACLs: L.rpc.declare({
+		callACLs: L.rpc.declare({
 			object: 'luci2.ui',
 			method: 'acls',
-			expect: { acls: [ ] },
-			filter: function(trees) {
-				var acl_tree = { };
-				for (var i = 0; i < trees.length; i++)
-					L.ui._acl_merge_tree(acl_tree, trees[i]);
-				return acl_tree;
-			}
+			expect: { acls: [ ] }
 		}),
 
-		_render_change_indicator: function()
+		getAvailableACLs: function()
+		{
+			return this.callACLs().then(this.callACLsCallback);
+		},
+
+		renderChangeIndicator: function()
 		{
 			return $('<ul />')
 				.addClass('nav navbar-nav navbar-right')
@@ -3677,20 +3661,27 @@ function LuCI2()
 							.addClass('label label-info'))));
 		},
 
-		renderMainMenu: L.rpc.declare({
+		callMenuCallback: function(entries)
+		{
+			L.globals.mainMenu = new L.ui.menu();
+			L.globals.mainMenu.entries(entries);
+
+			$('#mainmenu')
+				.empty()
+				.append(L.globals.mainMenu.render(0, 1))
+				.append(L.ui.renderChangeIndicator());
+		},
+
+		callMenu: L.rpc.declare({
 			object: 'luci2.ui',
 			method: 'menu',
-			expect: { menu: { } },
-			filter: function(entries) {
-				L.globals.mainMenu = new L.ui.menu();
-				L.globals.mainMenu.entries(entries);
-
-				$('#mainmenu')
-					.empty()
-					.append(L.globals.mainMenu.render(0, 1))
-					.append(L.ui._render_change_indicator());
-			}
+			expect: { menu: { } }
 		}),
+
+		renderMainMenu: function()
+		{
+			return this.callMenu().then(this.callMenuCallback);
+		},
 
 		renderViewMenu: function()
 		{
@@ -4083,7 +4074,7 @@ function LuCI2()
 			}
 		},
 
-		_indexcmp: function(a, b)
+		sortNodesCallback: function(a, b)
 		{
 			var x = a.index || 0;
 			var y = b.index || 0;
@@ -4099,7 +4090,7 @@ function LuCI2()
 			for (var child in (node.childs || { }))
 				nodes.push(node.childs[child]);
 
-			nodes.sort(this._indexcmp);
+			nodes.sort(this.sortNodesCallback);
 
 			for (var i = 0; i < nodes.length; i++)
 			{
@@ -4117,7 +4108,7 @@ function LuCI2()
 			return undefined;
 		},
 
-		_onclick: function(ev)
+		handleClick: function(ev)
 		{
 			L.setHash('view', ev.data);
 
@@ -4125,7 +4116,7 @@ function LuCI2()
 			this.blur();
 		},
 
-		_render: function(childs, level, min, max)
+		renderNodes: function(childs, level, min, max)
 		{
 			var nodes = [ ];
 			for (var node in childs)
@@ -4135,7 +4126,7 @@ function LuCI2()
 					nodes.push(childs[node]);
 			}
 
-			nodes.sort(this._indexcmp);
+			nodes.sort(this.sortNodesCallback);
 
 			var list = $('<ul />');
 
@@ -4168,11 +4159,11 @@ function LuCI2()
 						.attr('data-toggle', 'dropdown')
 						.append('<b class="caret"></b>');
 
-					item.append(this._render(nodes[i].childs, level + 1));
+					item.append(this.renderNodes(nodes[i].childs, level + 1));
 				}
 				else
 				{
-					item.find('a').click(nodes[i].view, this._onclick);
+					item.find('a').click(nodes[i].view, this.handleClick);
 				}
 			}
 
@@ -4182,7 +4173,7 @@ function LuCI2()
 		render: function(min, max)
 		{
 			var top = min ? this.getNode(L.globals.defaultNode.view, min) : this._nodes;
-			return this._render(top.childs, 0, min, max);
+			return this.renderNodes(top.childs, 0, min, max);
 		},
 
 		getNode: function(path, max)
@@ -4987,14 +4978,15 @@ function LuCI2()
 
 		id: function(sid)
 		{
-			return this.section.id('field', sid || '__unknown__', this.name);
+			return this.ownerSection.id('field', sid || '__unknown__', this.name);
 		},
 
 		render: function(sid, condensed)
 		{
 			var i = this.instance[sid] = { };
 
-			i.top = $('<div />');
+			i.top = $('<div />')
+				.addClass('luci2-field');
 
 			if (!condensed)
 			{
@@ -5010,9 +5002,10 @@ function LuCI2()
 
 			i.error = $('<div />')
 				.hide()
-				.addClass('label label-danger');
+				.addClass('luci2-field-error label label-danger');
 
 			i.widget = $('<div />')
+				.addClass('luci2-field-widget')
 				.append(this.widget(sid))
 				.append(i.error)
 				.appendTo(i.top);
@@ -5038,7 +5031,7 @@ function LuCI2()
 		ucipath: function(sid)
 		{
 			return {
-				config:  (this.options.uci_package || this.map.uci_package),
+				config:  (this.options.uci_package || this.ownerMap.uci_package),
 				section: (this.options.uci_section || sid),
 				option:  (this.options.uci_option  || this.name)
 			};
@@ -5047,7 +5040,7 @@ function LuCI2()
 		ucivalue: function(sid)
 		{
 			var uci = this.ucipath(sid);
-			var val = this.map.get(uci.config, uci.section, uci.option);
+			var val = this.ownerMap.get(uci.config, uci.section, uci.option);
 
 			if (typeof(val) == 'undefined')
 				return this.options.initial;
@@ -5132,7 +5125,7 @@ function LuCI2()
 			if (this.instance[sid].disabled)
 			{
 				if (!this.options.keep)
-					return this.map.set(uci.config, uci.section, uci.option, undefined);
+					return this.ownerMap.set(uci.config, uci.section, uci.option, undefined);
 
 				return false;
 			}
@@ -5141,16 +5134,56 @@ function LuCI2()
 			var val = this.formvalue(sid);
 
 			if (chg)
-				this.map.set(uci.config, uci.section, uci.option, val);
+				this.ownerMap.set(uci.config, uci.section, uci.option, val);
 
 			return chg;
 		},
 
-		_ev_validate: function(ev)
+		findSectionID: function($elem)
 		{
+			return this.ownerSection.findParentSectionIDs($elem)[0];
+		},
+
+		setError: function($elem, msg, msgargs)
+		{
+			var $field = $elem.parents('.luci2-field:first');
+			var $error = $field.find('.luci2-field-error:first');
+
+			if (typeof(msg) == 'string' && msg.length > 0)
+			{
+				$field.addClass('luci2-form-error');
+				$elem.parent().addClass('has-error');
+
+				$error.text(msg.format.apply(msg, msgargs)).show();
+				$field.trigger('validate');
+
+				return false;
+			}
+			else
+			{
+				$elem.parent().removeClass('has-error');
+
+				var $other_errors = $field.find('.has-error');
+				if ($other_errors.length == 0)
+				{
+					$field.removeClass('luci2-form-error');
+					$error.text('').hide();
+					$field.trigger('validate');
+
+					return true;
+				}
+
+				return false;
+			}
+		},
+
+		handleValidate: function(ev)
+		{
+			var $elem = $(this);
+
 			var d = ev.data;
 			var rv = true;
-			var val = d.elem.val();
+			var val = $elem.val();
 			var vstack = d.vstack;
 
 			if (vstack && typeof(vstack[0]) == 'function')
@@ -5159,51 +5192,38 @@ function LuCI2()
 
 				if ((val.length == 0 && !d.opt))
 				{
-					d.elem.parents('div.form-group, td').first().addClass('luci2-form-error');
-					d.elem.parents('div.input-group, div.form-group, td').first().addClass('has-error');
-
-					d.inst.error.text(L.tr('Field must not be empty')).show();
-					rv = false;
+					rv = d.self.setError($elem, L.tr('Field must not be empty'));
 				}
 				else if (val.length > 0 && !vstack[0].apply(val, vstack[1]))
 				{
-					d.elem.parents('div.form-group, td').first().addClass('luci2-form-error');
-					d.elem.parents('div.input-group, div.form-group, td').first().addClass('has-error');
-
-					d.inst.error.text(validation.message.format.apply(validation.message, vstack[1])).show();
-					rv = false;
+					rv = d.self.setError($elem, validation.message, vstack[1]);
 				}
 				else
 				{
-					d.elem.parents('div.form-group, td').first().removeClass('luci2-form-error');
-					d.elem.parents('div.input-group, div.form-group, td').first().removeClass('has-error');
-
-					if (d.multi && d.inst.widget && d.inst.widget.find('input.error, select.error').length > 0)
-						rv = false;
-					else
-						d.inst.error.text('').hide();
+					rv = d.self.setError($elem);
 				}
 			}
 
 			if (rv)
 			{
-				for (var field in d.self.rdependency)
-					d.self.rdependency[field].toggle(d.sid);
+				var sid = d.self.findSectionID($elem);
 
-				d.self.section.tabtoggle(d.sid);
+				for (var field in d.self.rdependency)
+				{
+					d.self.rdependency[field].toggle(sid);
+					d.self.rdependency[field].validate(sid);
+				}
+
+				d.self.ownerSection.tabtoggle(sid);
 			}
 
 			return rv;
 		},
 
-		validator: function(sid, elem, multi)
+		attachEvents: function(sid, elem)
 		{
 			var evdata = {
 				self:   this,
-				sid:    sid,
-				elem:   elem,
-				multi:  multi,
-				inst:   this.instance[sid],
 				opt:    this.options.optional
 			};
 
@@ -5234,20 +5254,21 @@ function LuCI2()
 
 			if (elem.prop('tagName') == 'SELECT')
 			{
-				elem.change(evdata, this._ev_validate);
+				elem.change(evdata, this.handleValidate);
 			}
 			else if (elem.prop('tagName') == 'INPUT' && elem.attr('type') == 'checkbox')
 			{
-				elem.click(evdata, this._ev_validate);
-				elem.blur(evdata, this._ev_validate);
+				elem.click(evdata, this.handleValidate);
+				elem.blur(evdata, this.handleValidate);
 			}
 			else
 			{
-				elem.keyup(evdata, this._ev_validate);
-				elem.blur(evdata, this._ev_validate);
+				elem.keyup(evdata, this.handleValidate);
+				elem.blur(evdata, this.handleValidate);
 			}
 
-			elem.attr('cbi-validate', true).on('validate', evdata, this._ev_validate);
+			elem.addClass('luci2-field-validate')
+				.on('validate', evdata, this.handleValidate);
 
 			return elem;
 		},
@@ -5256,7 +5277,7 @@ function LuCI2()
 		{
 			var i = this.instance[sid];
 
-			i.widget.find('[cbi-validate]').trigger('validate');
+			i.widget.find('.luci2-field-validate').trigger('validate');
 
 			return (i.disabled || i.error.text() == '');
 		},
@@ -5296,7 +5317,7 @@ function LuCI2()
 
 			for (var field in dep)
 			{
-				var f = this.section.fields[field];
+				var f = this.ownerSection.fields[field];
 				if (f)
 					f.rdependency[this.name] = this;
 				else
@@ -5329,7 +5350,7 @@ function LuCI2()
 
 				for (var field in d[n])
 				{
-					var val = this.section.fields[field].formvalue(sid);
+					var val = this.ownerSection.fields[field].formvalue(sid);
 					var cmp = d[n][field];
 
 					if (typeof(cmp) == 'boolean')
@@ -5371,6 +5392,7 @@ function LuCI2()
 					if (i.disabled)
 					{
 						i.disabled = false;
+						i.top.removeClass('luci2-field-disabled');
 						i.top.fadeIn();
 					}
 
@@ -5382,6 +5404,7 @@ function LuCI2()
 			{
 				i.disabled = true;
 				i.top.is(':visible') ? i.top.fadeOut() : i.top.hide();
+				i.top.addClass('luci2-field-disabled');
 			}
 
 			return false;
@@ -5403,7 +5426,7 @@ function LuCI2()
 
 			return $('<div />')
 				.addClass('checkbox')
-				.append(this.validator(sid, i));
+				.append(this.attachEvents(sid, i));
 		},
 
 		ucivalue: function(sid)
@@ -5433,7 +5456,7 @@ function LuCI2()
 			if (this.instance[sid].disabled)
 			{
 				if (!this.options.keep)
-					return this.map.set(uci.config, uci.section, uci.option, undefined);
+					return this.ownerMap.set(uci.config, uci.section, uci.option, undefined);
 
 				return false;
 			}
@@ -5444,9 +5467,9 @@ function LuCI2()
 			if (chg)
 			{
 				if (this.options.optional && val == this.options.initial)
-					this.map.set(uci.config, uci.section, uci.option, undefined);
+					this.ownerMap.set(uci.config, uci.section, uci.option, undefined);
 				else
-					this.map.set(uci.config, uci.section, uci.option, val ? this.options.enabled : this.options.disabled);
+					this.ownerMap.set(uci.config, uci.section, uci.option, val ? this.options.enabled : this.options.disabled);
 			}
 
 			return chg;
@@ -5463,7 +5486,7 @@ function LuCI2()
 				.attr('placeholder', this.options.placeholder)
 				.val(this.ucivalue(sid));
 
-			return this.validator(sid, i);
+			return this.attachEvents(sid, i);
 		}
 	});
 
@@ -5489,7 +5512,7 @@ function LuCI2()
 						b = i = t = null;
 					}));
 
-			this.validator(sid, i);
+			this.attachEvents(sid, i);
 
 			return $('<div />')
 				.addClass('input-group')
@@ -5519,7 +5542,7 @@ function LuCI2()
 
 			s.attr('id', this.id(sid)).val(this.ucivalue(sid));
 
-			return this.validator(sid, s);
+			return this.attachEvents(sid, s);
 		},
 
 		value: function(k, v)
@@ -5697,8 +5720,8 @@ function LuCI2()
 			t.val(this.ucivalue(sid));
 			t.blur();
 
-			this.validator(sid, t);
-			this.validator(sid, s);
+			this.attachEvents(sid, t);
+			this.attachEvents(sid, s);
 
 			return d;
 		},
@@ -5781,8 +5804,8 @@ function LuCI2()
 							.append(btn))
 						.appendTo(s.parent);
 
-					evdata.input = this.validator(s.sid, txt, true);
-					evdata.select = this.validator(s.sid, sel, true);
+					evdata.input = this.attachEvents(s.sid, txt);
+					evdata.select = this.attachEvents(s.sid, sel);
 
 					sel.change(evdata, this._change);
 					txt.blur(evdata, this._blur);
@@ -5829,7 +5852,7 @@ function LuCI2()
 						f.val(val);
 					}
 
-					evdata.input = this.validator(s.sid, f, true);
+					evdata.input = this.attachEvents(s.sid, f);
 
 					f = null;
 				}
@@ -6008,7 +6031,7 @@ function LuCI2()
 				.attr('type', 'button')
 				.text(this.label('text'));
 
-			return this.validator(sid, btn);
+			return this.attachEvents(sid, btn);
 		}
 	});
 
@@ -6051,11 +6074,11 @@ function LuCI2()
 				$('<li />')
 					.append($('<label />')
 						.addClass(itype + ' inline')
-						.append(this.validator(sid, $('<input />')
+						.append(this.attachEvents(sid, $('<input />')
 							.attr('name', itype + id)
 							.attr('type', itype)
 							.attr('value', iface.name())
-							.prop('checked', !!check[iface.name()]), true))
+							.prop('checked', !!check[iface.name()])))
 						.append(iface.renderBadge()))
 					.appendTo(ul);
 			}
@@ -6065,11 +6088,11 @@ function LuCI2()
 				$('<li />')
 					.append($('<label />')
 						.addClass(itype + ' inline text-muted')
-						.append(this.validator(sid, $('<input />')
+						.append(this.attachEvents(sid, $('<input />')
 							.attr('name', itype + id)
 							.attr('type', itype)
 							.attr('value', '')
-							.prop('checked', $.isEmptyObject(check)), true))
+							.prop('checked', $.isEmptyObject(check))))
 						.append(L.tr('unspecified')))
 					.appendTo(ul);
 			}
@@ -6128,7 +6151,7 @@ function LuCI2()
 	});
 
 	this.cbi.DeviceList = this.cbi.NetworkList.extend({
-		_ev_focus: function(ev)
+		handleFocus: function(ev)
 		{
 			var self = ev.data.self;
 			var input = $(this);
@@ -6136,13 +6159,13 @@ function LuCI2()
 			input.parent().prev().prop('checked', true);
 		},
 
-		_ev_blur: function(ev)
+		handleBlur: function(ev)
 		{
 			ev.which = 10;
-			ev.data.self._ev_keydown.call(this, ev);
+			ev.data.self.handleKeydown.call(this, ev);
 		},
 
-		_ev_keydown: function(ev)
+		handleKeydown: function(ev)
 		{
 			if (ev.which != 10 && ev.which != 13)
 				return;
@@ -6240,9 +6263,9 @@ function LuCI2()
 							.attr('id', 'custom' + id)
 							.attr('type', 'text')
 							.attr('placeholder', L.tr('Custom device …'))
-							.on('focus', { self: this, sid: sid }, this._ev_focus)
-							.on('blur', { self: this, sid: sid }, this._ev_blur)
-							.on('keydown', { self: this, sid: sid }, this._ev_keydown))))
+							.on('focus', { self: this, sid: sid }, this.handleFocus)
+							.on('blur', { self: this, sid: sid }, this.handleBlur)
+							.on('keydown', { self: this, sid: sid }, this.handleKeydown))))
 				.appendTo(ul);
 
 			if (!this.options.multiple)
@@ -6293,9 +6316,9 @@ function LuCI2()
 	this.cbi.AbstractSection = this.ui.AbstractWidget.extend({
 		id: function()
 		{
-			var s = [ arguments[0], this.map.uci_package, this.uci_type ];
+			var s = [ arguments[0], this.ownerMap.uci_package, this.uci_type ];
 
-			for (var i = 1; i < arguments.length; i++)
+			for (var i = 1; i < arguments.length && typeof(arguments[i]) == 'string'; i++)
 				s.push(arguments[i].replace(/\./g, '_'));
 
 			return s.join('_');
@@ -6343,8 +6366,8 @@ function LuCI2()
 			if (!(w instanceof L.cbi.AbstractValue))
 				throw 'Widget must be an instance of AbstractValue';
 
-			w.section = this;
-			w.map     = this.map;
+			w.ownerSection = this;
+			w.ownerMap     = this.ownerMap;
 
 			this.fields[name] = w;
 			tab.fields.push(w);
@@ -6376,283 +6399,77 @@ function LuCI2()
 			}
 		},
 
-		ucipackages: function(pkg)
+		validate: function(parent_sid)
 		{
-			for (var i = 0; i < this.tabs.length; i++)
-				for (var j = 0; j < this.tabs[i].fields.length; j++)
-					if (this.tabs[i].fields[j].options.uci_package)
-						pkg[this.tabs[i].fields[j].options.uci_package] = true;
+			var s = this.getUCISections(parent_sid);
+			var n = 0;
+
+			for (var i = 0; i < s.length; i++)
+			{
+				var $item = $('#' + this.id('sectionitem', s[i]['.name']));
+
+				$item.find('.luci2-field-validate').trigger('validate');
+				n += $item.find('.luci2-field.luci2-form-error').not('.luci2-field-disabled').length;
+			}
+
+			return (n == 0);
 		},
 
-		formvalue: function()
+		load: function(parent_sid)
 		{
-			var rv = { };
+			var deferreds = [ ];
 
-			this.sections(function(s) {
-				var sid = s['.name'];
-				var sv = rv[sid] || (rv[sid] = { });
+			var s = this.getUCISections(parent_sid);
+			for (var i = 0; i < s.length; i++)
+			{
+				for (var f in this.fields)
+				{
+					if (typeof(this.fields[f].load) != 'function')
+						continue;
 
-				for (var i = 0; i < this.tabs.length; i++)
-					for (var j = 0; j < this.tabs[i].fields.length; j++)
+					var rv = this.fields[f].load(s[i]['.name']);
+					if (L.isDeferred(rv))
+						deferreds.push(rv);
+				}
+
+				for (var j = 0; j < this.subsections.length; j++)
+				{
+					var rv = this.subsections[j].load(s[i]['.name']);
+					deferreds.push.apply(deferreds, rv);
+				}
+			}
+
+			return deferreds;
+		},
+
+		save: function(parent_sid)
+		{
+			var deferreds = [ ];
+			var s = this.getUCISections(parent_sid);
+
+			for (i = 0; i < s.length; i++)
+			{
+				if (!this.options.readonly)
+				{
+					for (var f in this.fields)
 					{
-						var val = this.tabs[i].fields[j].formvalue(sid);
-						sv[this.tabs[i].fields[j].name] = val;
+						if (typeof(this.fields[f].save) != 'function')
+							continue;
+
+						var rv = this.fields[f].save(s[i]['.name']);
+						if (L.isDeferred(rv))
+							deferreds.push(rv);
 					}
-			});
+				}
 
-			return rv;
-		},
-
-		validate_section: function(sid)
-		{
-			var inst = this.instance[sid];
-
-			var invals = 0;
-			var badge = $('#' + this.id('teaser', sid)).children('span:first');
-
-			for (var i = 0; i < this.tabs.length; i++)
-			{
-				var inval = 0;
-				var stbadge = $('#' + this.id('nodetab', sid, this.tabs[i].id)).children('span:first');
-
-				for (var j = 0; j < this.tabs[i].fields.length; j++)
-					if (!this.tabs[i].fields[j].validate(sid))
-						inval++;
-
-				if (inval > 0)
-					stbadge.show()
-						.text(inval)
-						.attr('title', L.trp('1 Error', '%d Errors', inval).format(inval));
-				else
-					stbadge.hide();
-
-				invals += inval;
+				for (var j = 0; j < this.subsections.length; j++)
+				{
+					var rv = this.subsections[j].save(s[i]['.name']);
+					deferreds.push.apply(deferreds, rv);
+				}
 			}
 
-			if (invals > 0)
-				badge.show()
-					.text(invals)
-					.attr('title', L.trp('1 Error', '%d Errors', invals).format(invals));
-			else
-				badge.hide();
-
-			return invals;
-		},
-
-		validate: function()
-		{
-			var errors = 0;
-			var as = this.sections();
-
-			for (var i = 0; i < as.length; i++)
-			{
-				var invals = this.validate_section(as[i]['.name']);
-
-				if (invals > 0)
-					errors += invals;
-			}
-
-			var badge = $('#' + this.id('sectiontab')).children('span:first');
-
-			if (errors > 0)
-				badge.show()
-					.text(errors)
-					.attr('title', L.trp('1 Error', '%d Errors', errors).format(errors));
-			else
-				badge.hide();
-
-			return (errors == 0);
-		}
-	});
-
-	this.cbi.TypedSection = this.cbi.AbstractSection.extend({
-		init: function(uci_type, options)
-		{
-			this.uci_type = uci_type;
-			this.options  = options;
-			this.tabs     = [ ];
-			this.fields   = { };
-			this.active_panel = 0;
-			this.active_tab   = { };
-		},
-
-		filter: function(section)
-		{
-			return true;
-		},
-
-		sort: function(section1, section2)
-		{
-			return 0;
-		},
-
-		sections: function(cb)
-		{
-			var s1 = L.uci.sections(this.map.uci_package);
-			var s2 = [ ];
-
-			for (var i = 0; i < s1.length; i++)
-				if (s1[i]['.type'] == this.uci_type)
-					if (this.filter(s1[i]))
-						s2.push(s1[i]);
-
-			s2.sort(this.sort);
-
-			if (typeof(cb) == 'function')
-				for (var i = 0; i < s2.length; i++)
-					cb.call(this, s2[i]);
-
-			return s2;
-		},
-
-		add: function(name)
-		{
-			return this.map.add(this.map.uci_package, this.uci_type, name);
-		},
-
-		remove: function(sid)
-		{
-			return this.map.remove(this.map.uci_package, sid);
-		},
-
-		_ev_add: function(ev)
-		{
-			var addb = $(this);
-			var name = undefined;
-			var self = ev.data.self;
-
-			if (addb.prev().prop('nodeName') == 'INPUT')
-				name = addb.prev().val();
-
-			if (addb.prop('disabled') || name === '')
-				return;
-
-			L.ui.saveScrollTop();
-
-			self.active_panel = -1;
-			self.map.save();
-
-			ev.data.sid  = self.add(name);
-			ev.data.type = self.uci_type;
-			ev.data.name = name;
-
-			self.trigger('add', ev);
-
-			self.map.redraw();
-
-			L.ui.restoreScrollTop();
-		},
-
-		_ev_remove: function(ev)
-		{
-			var self = ev.data.self;
-			var sid  = ev.data.sid;
-
-			L.ui.saveScrollTop();
-
-			self.trigger('remove', ev);
-
-			self.map.save();
-			self.remove(sid);
-			self.map.redraw();
-
-			L.ui.restoreScrollTop();
-
-			ev.stopPropagation();
-		},
-
-		_ev_sid: function(ev)
-		{
-			var self = ev.data.self;
-			var text = $(this);
-			var addb = text.next();
-			var errt = addb.next();
-			var name = text.val();
-
-			if (!/^[a-zA-Z0-9_]*$/.test(name))
-			{
-				errt.text(L.tr('Invalid section name')).show();
-				text.addClass('error');
-				addb.prop('disabled', true);
-				return false;
-			}
-
-			if (L.uci.get(self.map.uci_package, name))
-			{
-				errt.text(L.tr('Name already used')).show();
-				text.addClass('error');
-				addb.prop('disabled', true);
-				return false;
-			}
-
-			errt.text('').hide();
-			text.removeClass('error');
-			addb.prop('disabled', false);
-			return true;
-		},
-
-		_ev_tab: function(ev)
-		{
-			var self = ev.data.self;
-			var sid  = ev.data.sid;
-
-			self.validate();
-			self.active_tab[sid] = parseInt(ev.target.getAttribute('data-luci2-tab-index'));
-		},
-
-		_ev_panel_collapse: function(ev)
-		{
-			var self = ev.data.self;
-
-			var this_panel = $(ev.target);
-			var this_toggle = this_panel.prevAll('[data-toggle="collapse"]:first');
-
-			var prev_toggle = $($(ev.delegateTarget).find('[data-toggle="collapse"]:eq(%d)'.format(self.active_panel)));
-			var prev_panel = $(prev_toggle.attr('data-target'));
-
-			prev_panel
-				.removeClass('in')
-				.addClass('collapse');
-
-			prev_toggle.find('.luci2-section-teaser')
-				.show()
-				.children('span:last')
-				.empty()
-				.append(self.teaser(prev_panel.attr('data-luci2-sid')));
-
-			this_toggle.find('.luci2-section-teaser')
-				.hide();
-
-			self.active_panel = parseInt(this_panel.attr('data-luci2-panel-index'));
-			self.validate();
-		},
-
-		_ev_panel_open: function(ev)
-		{
-			var self  = ev.data.self;
-			var panel = $($(this).attr('data-target'));
-			var index = parseInt(panel.attr('data-luci2-panel-index'));
-
-			if (index == self.active_panel)
-				ev.stopPropagation();
-		},
-
-		_ev_sort: function(ev)
-		{
-			var self    = ev.data.self;
-			var cur_idx = ev.data.index;
-			var new_idx = cur_idx + (ev.data.up ? -1 : 1);
-			var s       = self.sections();
-
-			if (new_idx >= 0 && new_idx < s.length)
-			{
-				L.uci.swap(self.map.uci_package, s[cur_idx]['.name'], s[new_idx]['.name']);
-
-				self.map.save();
-				self.map.redraw();
-			}
-
-			ev.stopPropagation();
+			return deferreds;
 		},
 
 		teaser: function(sid)
@@ -6701,7 +6518,288 @@ function LuCI2()
 			return t;
 		},
 
-		_render_add: function()
+		findAdditionalUCIPackages: function()
+		{
+			var packages = [ ];
+
+			for (var i = 0; i < this.tabs.length; i++)
+				for (var j = 0; j < this.tabs[i].fields.length; j++)
+					if (this.tabs[i].fields[j].options.uci_package)
+						packages.push(this.tabs[i].fields[j].options.uci_package);
+
+			return packages;
+		},
+
+		findParentSectionIDs: function($elem)
+		{
+			var rv = [ ];
+			var $parents = $elem.parents('.luci2-section-item');
+
+			for (var i = 0; i < $parents.length; i++)
+				rv.push($parents[i].getAttribute('data-luci2-sid'));
+
+			return rv;
+		}
+	});
+
+	this.cbi.TypedSection = this.cbi.AbstractSection.extend({
+		init: function(uci_type, options)
+		{
+			this.uci_type = uci_type;
+			this.options  = options;
+			this.tabs     = [ ];
+			this.fields   = { };
+			this.subsections  = [ ];
+			this.active_panel = { };
+			this.active_tab   = { };
+
+			this.instance = { };
+		},
+
+		filter: function(section, parent_sid)
+		{
+			return true;
+		},
+
+		sort: function(section1, section2)
+		{
+			return 0;
+		},
+
+		subsection: function(widget, uci_type, options)
+		{
+			var w = widget ? new widget(uci_type, options) : null;
+
+			if (!(w instanceof L.cbi.AbstractSection))
+				throw 'Widget must be an instance of AbstractSection';
+
+			w.ownerSection = this;
+			w.ownerMap     = this.ownerMap;
+			w.index        = this.subsections.length;
+
+			this.subsections.push(w);
+			return w;
+		},
+
+		getUCISections: function(parent_sid)
+		{
+			var s1 = L.uci.sections(this.ownerMap.uci_package);
+			var s2 = [ ];
+
+			for (var i = 0; i < s1.length; i++)
+				if (s1[i]['.type'] == this.uci_type)
+					if (this.filter(s1[i], parent_sid))
+						s2.push(s1[i]);
+
+			s2.sort(this.sort);
+
+			return s2;
+		},
+
+		add: function(name, parent_sid)
+		{
+			return this.ownerMap.add(this.ownerMap.uci_package, this.uci_type, name);
+		},
+
+		remove: function(sid, parent_sid)
+		{
+			return this.ownerMap.remove(this.ownerMap.uci_package, sid);
+		},
+
+		handleAdd: function(ev)
+		{
+			var addb = $(this);
+			var name = undefined;
+			var self = ev.data.self;
+			var sid  = self.findParentSectionIDs(addb)[0];
+
+			if (addb.prev().prop('nodeName') == 'INPUT')
+				name = addb.prev().val();
+
+			if (addb.prop('disabled') || name === '')
+				return;
+
+			L.ui.saveScrollTop();
+
+			self.setPanelIndex(sid, -1);
+			self.ownerMap.save();
+
+			ev.data.sid  = self.add(name, sid);
+			ev.data.type = self.uci_type;
+			ev.data.name = name;
+
+			self.trigger('add', ev);
+
+			self.ownerMap.redraw();
+
+			L.ui.restoreScrollTop();
+		},
+
+		handleRemove: function(ev)
+		{
+			var self = ev.data.self;
+			var sids = self.findParentSectionIDs($(this));
+
+			if (sids.length)
+			{
+				L.ui.saveScrollTop();
+
+				ev.sid = sids[0];
+				ev.parent_sid = sids[1];
+
+				self.trigger('remove', ev);
+
+				self.ownerMap.save();
+				self.remove(ev.sid, ev.parent_sid);
+				self.ownerMap.redraw();
+
+				L.ui.restoreScrollTop();
+			}
+
+			ev.stopPropagation();
+		},
+
+		handleSID: function(ev)
+		{
+			var self = ev.data.self;
+			var text = $(this);
+			var addb = text.next();
+			var errt = addb.next();
+			var name = text.val();
+
+			if (!/^[a-zA-Z0-9_]*$/.test(name))
+			{
+				errt.text(L.tr('Invalid section name')).show();
+				text.addClass('error');
+				addb.prop('disabled', true);
+				return false;
+			}
+
+			if (L.uci.get(self.ownerMap.uci_package, name))
+			{
+				errt.text(L.tr('Name already used')).show();
+				text.addClass('error');
+				addb.prop('disabled', true);
+				return false;
+			}
+
+			errt.text('').hide();
+			text.removeClass('error');
+			addb.prop('disabled', false);
+			return true;
+		},
+
+		handleTab: function(ev)
+		{
+			var self = ev.data.self;
+			var $tab = $(this);
+			var sid  = self.findParentSectionIDs($tab)[0];
+
+			self.active_tab[sid] = $tab.parent().index();
+		},
+
+		handleTabValidate: function(ev)
+		{
+			var $pane = $(ev.delegateTarget);
+			var $badge = $pane.parent()
+				.children('.nav-tabs')
+				.children('li')
+				.eq($pane.index() - 1) // item #1 is the <ul>
+				.find('.badge:first');
+
+			var err_count = $pane.find('.luci2-field.luci2-form-error').not('.luci2-field-disabled').length;
+			if (err_count > 0)
+				$badge
+					.text(err_count)
+					.attr('title', L.trp('1 Error', '%d Errors', err_count).format(err_count))
+					.show();
+			else
+				$badge.hide();
+		},
+
+		handlePanelValidate: function(ev)
+		{
+			var $elem = $(this);
+			var $badge = $elem
+				.prevAll('.luci2-section-header:first')
+				.children('.luci2-section-teaser')
+				.find('.badge:first');
+
+			var err_count = $elem.find('.luci2-field.luci2-form-error').not('.luci2-field-disabled').length;
+			if (err_count > 0)
+				$badge
+					.text(err_count)
+					.attr('title', L.trp('1 Error', '%d Errors', err_count).format(err_count))
+					.show();
+			else
+				$badge.hide();
+		},
+
+		handlePanelCollapse: function(ev)
+		{
+			var self = ev.data.self;
+
+			var $items = $(ev.delegateTarget).children('.luci2-section-item');
+
+			var $this_panel  = $(ev.target);
+			var $this_teaser = $this_panel.prevAll('.luci2-section-header:first').children('.luci2-section-teaser');
+
+			var $prev_panel  = $items.children('.luci2-section-panel.in');
+			var $prev_teaser = $prev_panel.prevAll('.luci2-section-header:first').children('.luci2-section-teaser');
+
+			var sids = self.findParentSectionIDs($prev_panel);
+
+			self.setPanelIndex(sids[1], $this_panel.parent().index());
+
+			$prev_panel
+				.removeClass('in')
+				.addClass('collapse');
+
+			$prev_teaser
+				.show()
+				.children('span:last')
+				.empty()
+				.append(self.teaser(sids[0]));
+
+			$this_teaser
+				.hide();
+
+			ev.stopPropagation();
+		},
+
+		handleSort: function(ev)
+		{
+			var self = ev.data.self;
+
+			var $item = $(this).parents('.luci2-section-item:first');
+			var $next = ev.data.up ? $item.prev() : $item.next();
+
+			if ($item.length && $next.length)
+			{
+				var cur_sid = $item.attr('data-luci2-sid');
+				var new_sid = $next.attr('data-luci2-sid');
+
+				L.uci.swap(self.ownerMap.uci_package, cur_sid, new_sid);
+
+				self.ownerMap.save();
+				self.ownerMap.redraw();
+			}
+
+			ev.stopPropagation();
+		},
+
+		getPanelIndex: function(parent_sid)
+		{
+			return (this.active_panel[parent_sid || '__top__'] || 0);
+		},
+
+		setPanelIndex: function(parent_sid, new_index)
+		{
+			if (typeof(new_index) == 'number')
+				this.active_panel[parent_sid || '__top__'] = new_index;
+		},
+
+		renderAdd: function()
 		{
 			if (!this.options.addremove)
 				return null;
@@ -6722,15 +6820,15 @@ function LuCI2()
 					.addClass('cbi-input-text')
 					.attr('type', 'text')
 					.attr('placeholder', ttip)
-					.blur({ self: this }, this._ev_sid)
-					.keyup({ self: this }, this._ev_sid)
+					.blur({ self: this }, this.handleSID)
+					.keyup({ self: this }, this.handleSID)
 					.appendTo(add);
 
 				$('<img />')
 					.attr('src', L.globals.resource + '/icons/cbi/add.gif')
 					.attr('title', text)
 					.addClass('cbi-button')
-					.click({ self: this }, this._ev_add)
+					.click({ self: this }, this.handleAdd)
 					.appendTo(add);
 
 				$('<div />')
@@ -6741,14 +6839,14 @@ function LuCI2()
 			else
 			{
 				L.ui.button(text, 'success', ttip)
-					.click({ self: this }, this._ev_add)
+					.click({ self: this }, this.handleAdd)
 					.appendTo(add);
 			}
 
 			return add;
 		},
 
-		_render_remove: function(sid, index)
+		renderRemove: function(index)
 		{
 			if (!this.options.addremove)
 				return null;
@@ -6762,31 +6860,31 @@ function LuCI2()
 				text = this.options.remove_caption, ttip = '';
 
 			return L.ui.button(text, 'danger', ttip)
-				.click({ self: this, sid: sid, index: index }, this._ev_remove);
+				.click({ self: this, index: index }, this.handleRemove);
 		},
 
-		_render_sort: function(sid, index)
+		renderSort: function(index)
 		{
 			if (!this.options.sortable)
 				return null;
 
 			var b1 = L.ui.button('↑', 'info', L.tr('Move up'))
-				.click({ self: this, index: index, up: true }, this._ev_sort);
+				.click({ self: this, index: index, up: true }, this.handleSort);
 
 			var b2 = L.ui.button('↓', 'info', L.tr('Move down'))
-				.click({ self: this, index: index, up: false }, this._ev_sort);
+				.click({ self: this, index: index, up: false }, this.handleSort);
 
 			return b1.add(b2);
 		},
 
-		_render_caption: function()
+		renderCaption: function()
 		{
 			return $('<h3 />')
 				.addClass('panel-title')
 				.append(this.label('caption') || this.uci_type);
 		},
 
-		_render_description: function()
+		renderDescription: function()
 		{
 			var text = this.label('description');
 
@@ -6798,9 +6896,9 @@ function LuCI2()
 			return null;
 		},
 
-		_render_teaser: function(sid, index)
+		renderTeaser: function(sid, index)
 		{
-			if (this.options.collabsible || this.map.options.collabsible)
+			if (this.options.collabsible || this.ownerMap.options.collabsible)
 			{
 				return $('<div />')
 					.attr('id', this.id('teaser', sid))
@@ -6813,18 +6911,18 @@ function LuCI2()
 			return null;
 		},
 
-		_render_head: function(condensed)
+		renderHead: function(condensed)
 		{
 			if (condensed)
 				return null;
 
 			return $('<div />')
 				.addClass('panel-heading')
-				.append(this._render_caption())
-				.append(this._render_description());
+				.append(this.renderCaption())
+				.append(this.renderDescription());
 		},
 
-		_render_tab_description: function(sid, index, tab_index)
+		renderTabDescription: function(sid, index, tab_index)
 		{
 			var tab = this.tabs[tab_index];
 
@@ -6838,7 +6936,7 @@ function LuCI2()
 			return null;
 		},
 
-		_render_tab_head: function(sid, index, tab_index)
+		renderTabHead: function(sid, index, tab_index)
 		{
 			var tab = this.tabs[tab_index];
 			var cur = this.active_tab[sid] || 0;
@@ -6848,11 +6946,10 @@ function LuCI2()
 					.attr('id', this.id('nodetab', sid, tab.id))
 					.attr('href', '#' + this.id('node', sid, tab.id))
 					.attr('data-toggle', 'tab')
-					.attr('data-luci2-tab-index', tab_index)
 					.text((tab.caption ? tab.caption.format(tab.id) : tab.id) + ' ')
 					.append($('<span />')
 						.addClass('badge'))
-					.on('shown.bs.tab', { self: this, sid: sid }, this._ev_tab));
+					.on('shown.bs.tab', { self: this, sid: sid }, this.handleTab));
 
 			if (cur == tab_index)
 				tabh.addClass('active');
@@ -6863,7 +6960,7 @@ function LuCI2()
 			return tabh;
 		},
 
-		_render_tab_body: function(sid, index, tab_index)
+		renderTabBody: function(sid, index, tab_index)
 		{
 			var tab = this.tabs[tab_index];
 			var cur = this.active_tab[sid] || 0;
@@ -6871,8 +6968,8 @@ function LuCI2()
 			var tabb = $('<div />')
 				.addClass('tab-pane')
 				.attr('id', this.id('node', sid, tab.id))
-				.attr('data-luci2-tab-index', tab_index)
-				.append(this._render_tab_description(sid, index, tab_index));
+				.append(this.renderTabDescription(sid, index, tab_index))
+				.on('validate', this.handleTabValidate);
 
 			if (cur == tab_index)
 				tabb.addClass('active');
@@ -6883,39 +6980,38 @@ function LuCI2()
 			return tabb;
 		},
 
-		_render_section_head: function(sid, index)
+		renderPanelHead: function(sid, index, parent_sid)
 		{
 			var head = $('<div />')
 				.addClass('luci2-section-header')
-				.append(this._render_teaser(sid, index))
+				.append(this.renderTeaser(sid, index))
 				.append($('<div />')
 					.addClass('btn-group')
-					.append(this._render_sort(sid, index))
-					.append(this._render_remove(sid, index)));
+					.append(this.renderSort(index))
+					.append(this.renderRemove(index)));
 
 			if (this.options.collabsible)
 			{
 				head.attr('data-toggle', 'collapse')
-					.attr('data-parent', this.id('sectiongroup'))
-					.attr('data-target', '#' + this.id('panel', sid))
-					.on('click', { self: this }, this._ev_panel_open);
+					.attr('data-parent', this.id('sectiongroup', parent_sid))
+					.attr('data-target', '#' + this.id('panel', sid));
 			}
 
 			return head;
 		},
 
-		_render_section_body: function(sid, index)
+		renderPanelBody: function(sid, index, parent_sid)
 		{
 			var body = $('<div />')
 				.attr('id', this.id('panel', sid))
-				.attr('data-luci2-panel-index', index)
-				.attr('data-luci2-sid', sid);
+				.addClass('luci2-section-panel')
+				.on('validate', this.handlePanelValidate);
 
-			if (this.options.collabsible || this.map.options.collabsible)
+			if (this.options.collabsible || this.ownerMap.options.collabsible)
 			{
 				body.addClass('panel-collapse collapse');
 
-				if (index == this.active_panel)
+				if (index == this.getPanelIndex(parent_sid))
 					body.addClass('in');
 			}
 
@@ -6928,8 +7024,8 @@ function LuCI2()
 
 			for (var j = 0; j < this.tabs.length; j++)
 			{
-				tab_heads.append(this._render_tab_head(sid, index, j));
-				tab_bodies.append(this._render_tab_body(sid, index, j));
+				tab_heads.append(this.renderTabHead(sid, index, j));
+				tab_bodies.append(this.renderTabBody(sid, index, j));
 			}
 
 			body.append(tab_bodies);
@@ -6937,25 +7033,29 @@ function LuCI2()
 			if (this.tabs.length <= 1)
 				tab_heads.hide();
 
+			for (var i = 0; i < this.subsections.length; i++)
+				body.append(this.subsections[i].render(false, sid));
+
 			return body;
 		},
 
-		_render_body: function(condensed)
+		renderBody: function(condensed, parent_sid)
 		{
-			var s = this.sections();
+			var s = this.getUCISections(parent_sid);
+			var n = this.getPanelIndex(parent_sid);
 
-			if (this.active_panel < 0)
-				this.active_panel += s.length;
-			else if (this.active_panel >= s.length)
-				this.active_panel = s.length - 1;
+			if (n < 0)
+				this.setPanelIndex(parent_sid, n + s.length);
+			else if (n >= s.length)
+				this.setPanelIndex(parent_sid, s.length - 1);
 
 			var body = $('<ul />')
-				.addClass('list-group');
+				.addClass('luci2-section-group list-group');
 
 			if (this.options.collabsible)
 			{
-				body.attr('id', this.id('sectiongroup'))
-					.on('show.bs.collapse', { self: this }, this._ev_panel_collapse);
+				body.attr('id', this.id('sectiongroup', parent_sid))
+					.on('show.bs.collapse', { self: this }, this.handlePanelCollapse);
 			}
 
 			if (s.length == 0)
@@ -6971,53 +7071,56 @@ function LuCI2()
 				var inst = this.instance[sid] = { tabs: [ ] };
 
 				body.append($('<li />')
-					.addClass('list-group-item')
-					.append(this._render_section_head(sid, i))
-					.append(this._render_section_body(sid, i)));
+					.addClass('luci2-section-item list-group-item')
+					.attr('id', this.id('sectionitem', sid))
+					.attr('data-luci2-sid', sid)
+					.append(this.renderPanelHead(sid, i, parent_sid))
+					.append(this.renderPanelBody(sid, i, parent_sid)));
 			}
 
 			return body;
 		},
 
-		render: function(condensed)
+		render: function(condensed, parent_sid)
 		{
 			this.instance = { };
 
 			var panel = $('<div />')
 				.addClass('panel panel-default')
-				.append(this._render_head(condensed))
-				.append(this._render_body(condensed));
+				.append(this.renderHead(condensed))
+				.append(this.renderBody(condensed, parent_sid));
 
 			if (this.options.addremove)
 				panel.append($('<div />')
 					.addClass('panel-footer')
-					.append(this._render_add()));
+					.append(this.renderAdd()));
 
 			return panel;
 		},
 
-		finish: function()
+		finish: function(parent_sid)
 		{
-			var s = this.sections();
+			var s = this.getUCISections(parent_sid);
 
 			for (var i = 0; i < s.length; i++)
 			{
 				var sid = s[i]['.name'];
 
-				this.validate_section(sid);
-
-				if (i != this.active_panel)
+				if (i != this.getPanelIndex(parent_sid))
 					$('#' + this.id('teaser', sid)).children('span:last')
 						.append(this.teaser(sid));
 				else
 					$('#' + this.id('teaser', sid))
 						.hide();
+
+				for (var j = 0; j < this.subsections.length; j++)
+					this.subsections[j].finish(sid);
 			}
 		}
 	});
 
 	this.cbi.TableSection = this.cbi.TypedSection.extend({
-		_render_table_head: function()
+		renderTableHead: function()
 		{
 			var thead = $('<thead />')
 				.append($('<tr />')
@@ -7037,9 +7140,11 @@ function LuCI2()
 			return thead;
 		},
 
-		_render_table_row: function(sid, index)
+		renderTableRow: function(sid, index)
 		{
 			var row = $('<tr />')
+				.addClass('luci2-section-item')
+				.attr('id', this.id('sectionitem', sid))
 				.attr('data-luci2-sid', sid);
 
 			for (var j = 0; j < this.tabs[0].fields.length; j++)
@@ -7056,16 +7161,16 @@ function LuCI2()
 					.addClass('text-right')
 					.append($('<div />')
 						.addClass('btn-group')
-						.append(this._render_sort(sid, index))
-						.append(this._render_remove(sid, index))));
+						.append(this.renderSort(index))
+						.append(this.renderRemove(index))));
 			}
 
 			return row;
 		},
 
-		_render_table_body: function()
+		renderTableBody: function(parent_sid)
 		{
-			var s = this.sections();
+			var s = this.getUCISections(parent_sid);
 
 			var tbody = $('<tbody />');
 
@@ -7088,26 +7193,26 @@ function LuCI2()
 				var sid = s[i]['.name'];
 				var inst = this.instance[sid] = { tabs: [ ] };
 
-				tbody.append(this._render_table_row(sid, i));
+				tbody.append(this.renderTableRow(sid, i));
 			}
 
 			return tbody;
 		},
 
-		_render_body: function(condensed)
+		renderBody: function(condensed, parent_sid)
 		{
 			return $('<table />')
 				.addClass('table table-condensed table-hover')
-				.append(this._render_table_head())
-				.append(this._render_table_body());
+				.append(this.renderTableHead())
+				.append(this.renderTableBody(parent_sid));
 		}
 	});
 
 	this.cbi.NamedSection = this.cbi.TypedSection.extend({
-		sections: function(cb)
+		getUCISections: function(cb)
 		{
 			var sa = [ ];
-			var sl = L.uci.sections(this.map.uci_package);
+			var sl = L.uci.sections(this.ownerMap.uci_package);
 
 			for (var i = 0; i < sl.length; i++)
 				if (sl[i]['.name'] == this.uci_type)
@@ -7129,12 +7234,16 @@ function LuCI2()
 			this.instance = { };
 			this.instance[this.uci_type] = { tabs: [ ] };
 
-			return this._render_section_body(this.uci_type, 0);
+			return $('<div />')
+				.addClass('luci2-section-item')
+				.attr('id', this.id('sectionitem', this.uci_type))
+				.attr('data-luci2-sid', this.uci_type)
+				.append(this.renderPanelBody(this.uci_type, 0));
 		}
 	});
 
 	this.cbi.DummySection = this.cbi.TypedSection.extend({
-		sections: function(cb)
+		getUCISections: function(cb)
 		{
 			if (typeof(cb) == 'function')
 				cb.apply(this, [ { '.name': this.uci_type } ]);
@@ -7156,25 +7265,14 @@ function LuCI2()
 			});
 		},
 
-		_load_cb: function()
+		loadCallback: function()
 		{
 			var deferreds = [ L.deferrable(this.options.prepare()) ];
 
 			for (var i = 0; i < this.sections.length; i++)
 			{
-				for (var f in this.sections[i].fields)
-				{
-					if (typeof(this.sections[i].fields[f].load) != 'function')
-						continue;
-
-					var s = this.sections[i].sections();
-					for (var j = 0; j < s.length; j++)
-					{
-						var rv = this.sections[i].fields[f].load(s[j]['.name']);
-						if (L.isDeferred(rv))
-							deferreds.push(rv);
-					}
-				}
+				var rv = this.sections[i].load();
+				deferreds.push.apply(deferreds, rv);
 			}
 
 			return $.when.apply($, deferreds);
@@ -7183,38 +7281,36 @@ function LuCI2()
 		load: function()
 		{
 			var self = this;
-			var packages = { };
+			var packages = [ this.uci_package ];
 
 			for (var i = 0; i < this.sections.length; i++)
-				this.sections[i].ucipackages(packages);
+				packages.push.apply(packages, this.sections[i].findAdditionalUCIPackages());
 
-			packages[this.uci_package] = true;
-
-			for (var pkg in packages)
-				if (!L.uci.writable(pkg))
+			for (var i = 0; i < packages.length; i++)
+				if (!L.uci.writable(packages[i]))
+				{
 					this.options.readonly = true;
+					break;
+				}
 
-			return L.uci.load(L.toArray(packages)).then(function() {
-				return self._load_cb();
+			return L.uci.load(packages).then(function() {
+				return self.loadCallback();
 			});
 		},
 
-		_ev_tab: function(ev)
+		handleTab: function(ev)
 		{
-			var self = ev.data.self;
-
-			self.validate();
-			self.active_tab = parseInt(ev.target.getAttribute('data-luci2-tab-index'));
+			ev.data.self.active_tab = $(ev.target).parent().index();
 		},
 
-		_ev_apply: function(ev)
+		handleApply: function(ev)
 		{
 			var self = ev.data.self;
 
 			self.trigger('apply', ev);
 		},
 
-		_ev_save: function(ev)
+		handleSave: function(ev)
 		{
 			var self = ev.data.self;
 
@@ -7223,7 +7319,7 @@ function LuCI2()
 			});
 		},
 
-		_ev_reset: function(ev)
+		handleReset: function(ev)
 		{
 			var self = ev.data.self;
 
@@ -7231,7 +7327,7 @@ function LuCI2()
 			self.reset();
 		},
 
-		_render_tab_head: function(tab_index)
+		renderTabHead: function(tab_index)
 		{
 			var section = this.sections[tab_index];
 			var cur = this.active_tab || 0;
@@ -7241,11 +7337,10 @@ function LuCI2()
 					.attr('id', section.id('sectiontab'))
 					.attr('href', '#' + section.id('section'))
 					.attr('data-toggle', 'tab')
-					.attr('data-luci2-tab-index', tab_index)
 					.text(section.label('caption') + ' ')
 					.append($('<span />')
 						.addClass('badge'))
-					.on('shown.bs.tab', { self: this }, this._ev_tab));
+					.on('shown.bs.tab', { self: this }, this.handleTab));
 
 			if (cur == tab_index)
 				tabh.addClass('active');
@@ -7253,7 +7348,7 @@ function LuCI2()
 			return tabh;
 		},
 
-		_render_tab_body: function(tab_index)
+		renderTabBody: function(tab_index)
 		{
 			var section = this.sections[tab_index];
 			var desc = section.label('description');
@@ -7261,8 +7356,7 @@ function LuCI2()
 
 			var tabb = $('<div />')
 				.addClass('tab-pane')
-				.attr('id', section.id('section'))
-				.attr('data-luci2-tab-index', tab_index);
+				.attr('id', section.id('section'));
 
 			if (cur == tab_index)
 				tabb.addClass('active');
@@ -7281,7 +7375,7 @@ function LuCI2()
 			return tabb;
 		},
 
-		_render_body: function()
+		renderBody: function()
 		{
 			var tabs = $('<ul />')
 				.addClass('nav nav-tabs');
@@ -7291,8 +7385,8 @@ function LuCI2()
 
 			for (var i = 0; i < this.sections.length; i++)
 			{
-				tabs.append(this._render_tab_head(i));
-				body.append(this._render_tab_body(i));
+				tabs.append(this.renderTabHead(i));
+				body.append(this.renderTabBody(i));
 			}
 
 			if (this.options.tabbed)
@@ -7303,7 +7397,7 @@ function LuCI2()
 			return body;
 		},
 
-		_render_footer: function()
+		renderFooter: function()
 		{
 			var evdata = {
 				self: this
@@ -7314,11 +7408,11 @@ function LuCI2()
 				.append($('<div />')
 					.addClass('btn-group')
 					.append(L.ui.button(L.tr('Save & Apply'), 'primary')
-						.click(evdata, this._ev_apply))
+						.click(evdata, this.handleApply))
 					.append(L.ui.button(L.tr('Save'), 'default')
-						.click(evdata, this._ev_save))
+						.click(evdata, this.handleSave))
 					.append(L.ui.button(L.tr('Reset'), 'default')
-						.click(evdata, this._ev_reset)));
+						.click(evdata, this.handleReset)));
 		},
 
 		render: function()
@@ -7333,10 +7427,10 @@ function LuCI2()
 				map.append($('<p />')
 					.text(this.options.description));
 
-			map.append(this._render_body());
+			map.append(this.renderBody());
 
 			if (this.options.pageaction !== false)
-				map.append(this._render_footer());
+				map.append(this.renderFooter());
 
 			return map;
 		},
@@ -7363,28 +7457,11 @@ function LuCI2()
 			if (!(w instanceof L.cbi.AbstractSection))
 				throw 'Widget must be an instance of AbstractSection';
 
-			w.map = this;
+			w.ownerMap = this;
 			w.index = this.sections.length;
 
 			this.sections.push(w);
 			return w;
-		},
-
-		formvalue: function()
-		{
-			var rv = { };
-
-			for (var i = 0; i < this.sections.length; i++)
-			{
-				var sids = this.sections[i].formvalue();
-				for (var sid in sids)
-				{
-					var s = rv[sid] || (rv[sid] = { });
-					$.extend(s, sids[sid]);
-				}
-			}
-
-			return rv;
 		},
 
 		add: function(conf, type, name)
@@ -7431,22 +7508,8 @@ function LuCI2()
 
 			for (var i = 0; i < self.sections.length; i++)
 			{
-				if (self.sections[i].options.readonly)
-					continue;
-
-				for (var f in self.sections[i].fields)
-				{
-					if (typeof(self.sections[i].fields[f].save) != 'function')
-						continue;
-
-					var s = self.sections[i].sections();
-					for (var j = 0; j < s.length; j++)
-					{
-						var rv = self.sections[i].fields[f].save(s[j]['.name']);
-						if (L.isDeferred(rv))
-							deferreds.push(rv);
-					}
-				}
+				var rv = self.sections[i].save();
+				deferreds.push.apply(deferreds, rv);
 			}
 
 			return $.when.apply($, deferreds).then(function() {
@@ -7481,14 +7544,12 @@ function LuCI2()
 
 		revert: function()
 		{
-			var packages = { };
+			var packages = [ this.uci_package ];
 
 			for (var i = 0; i < this.sections.length; i++)
-				this.sections[i].ucipackages(packages);
+				packages.push.apply(packages, this.sections[i].findAdditionalUCIPackages());
 
-			packages[this.uci_package] = true;
-
-			L.uci.unload(L.toArray(packages));
+			L.uci.unload(packages);
 		},
 
 		reset: function()
@@ -7519,14 +7580,14 @@ function LuCI2()
 	});
 
 	this.cbi.Modal = this.cbi.Map.extend({
-		_ev_apply: function(ev)
+		handleApply: function(ev)
 		{
 			var self = ev.data.self;
 
 			self.trigger('apply', ev);
 		},
 
-		_ev_save: function(ev)
+		handleSave: function(ev)
 		{
 			var self = ev.data.self;
 
@@ -7536,7 +7597,7 @@ function LuCI2()
 			});
 		},
 
-		_ev_reset: function(ev)
+		handleReset: function(ev)
 		{
 			var self = ev.data.self;
 
@@ -7545,7 +7606,7 @@ function LuCI2()
 			self.close();
 		},
 
-		_render_footer: function()
+		renderFooter: function()
 		{
 			var evdata = {
 				self: this
@@ -7554,11 +7615,11 @@ function LuCI2()
 			return $('<div />')
 				.addClass('btn-group')
 				.append(L.ui.button(L.tr('Save & Apply'), 'primary')
-					.click(evdata, this._ev_apply))
+					.click(evdata, this.handleApply))
 				.append(L.ui.button(L.tr('Save'), 'default')
-					.click(evdata, this._ev_save))
+					.click(evdata, this.handleSave))
 				.append(L.ui.button(L.tr('Cancel'), 'default')
-					.click(evdata, this._ev_reset));
+					.click(evdata, this.handleReset));
 		},
 
 		render: function()
@@ -7570,10 +7631,10 @@ function LuCI2()
 			if (desc)
 				map.append($('<p />').text(desc));
 
-			map.append(this._render_body());
+			map.append(this.renderBody());
 
 			modal.find('.modal-body').append(map);
-			modal.find('.modal-footer').append(this._render_footer());
+			modal.find('.modal-footer').append(this.renderFooter());
 
 			return modal;
 		},

@@ -33,7 +33,7 @@ L.NetworkModel.Protocol.extend({
 		section.taboption('general', L.cbi.InputValue, 'ip6prefix', {
 			caption:     L.tr('IPv6 routed prefix'),
 			description: L.tr('This is the prefix routed to you by the tunnel broker for use by clients'),
-			datatype:    'ip6addr',
+			datatype:    'cidr6',
 			optional:    true
 		});
 
@@ -46,7 +46,7 @@ L.NetworkModel.Protocol.extend({
 
 		update.save = function(sid) { };
 		update.ucivalue = function(sid) {
-			var n = parseInt(this.map.get('network', sid, 'tunnelid'));
+			var n = parseInt(this.ownerMap.get('network', sid, 'tunnelid'));
 			return !isNaN(n);
 		};
 

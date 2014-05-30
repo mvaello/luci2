@@ -9,8 +9,8 @@ L.NetworkModel.Protocol.extend({
 		var self = ev.data.self;
 		var sid = ev.data.sid;
 
-		var i = ($('#' + self.section.id('field', sid, 'ipaddr')).val() || '').split(/\./);
-		var m = ($('#' + self.section.id('field', sid, 'netmask') + ' select').val() || '').split(/\./);
+		var i = ($('#' + self.ownerSection.id('field', sid, 'ipaddr')).val() || '').split(/\./);
+		var m = ($('#' + self.ownerSection.id('field', sid, 'netmask') + ' select').val() || '').split(/\./);
 
 		var I = 0;
 		var M = 0;

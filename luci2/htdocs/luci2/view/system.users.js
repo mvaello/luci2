@@ -115,8 +115,8 @@ L.ui.view.extend({
 						.css('cursor', 'pointer')
 						.click({ level: 2 }, this.setAll)));
 
-			var acl_r = this.aclFromUCI(this.map.get('rpcd', sid, 'read'));
-			var acl_w = this.aclFromUCI(this.map.get('rpcd', sid, 'write'));
+			var acl_r = this.aclFromUCI(this.ownerMap.get('rpcd', sid, 'read'));
+			var acl_w = this.aclFromUCI(this.ownerMap.get('rpcd', sid, 'write'));
 
 			if (this.choices)
 				for (var i = 0; i < this.choices.length; i++)
@@ -147,8 +147,8 @@ L.ui.view.extend({
 
 		textvalue: function(sid)
 		{
-			var acl_r = this.aclFromUCI(this.map.get('rpcd', sid, 'read'));
-			var acl_w = this.aclFromUCI(this.map.get('rpcd', sid, 'write'));
+			var acl_r = this.aclFromUCI(this.ownerMap.get('rpcd', sid, 'read'));
+			var acl_w = this.aclFromUCI(this.ownerMap.get('rpcd', sid, 'write'));
 
 			var htmlid = this.id(sid);
 			var radios = $('#' + htmlid + ' input');
@@ -187,8 +187,8 @@ L.ui.view.extend({
 
 		save: function(sid)
 		{
-			var acl_r = this.aclFromUCI(this.map.get('rpcd', sid, 'read'));
-			var acl_w = this.aclFromUCI(this.map.get('rpcd', sid, 'write'));
+			var acl_r = this.aclFromUCI(this.ownerMap.get('rpcd', sid, 'read'));
+			var acl_w = this.aclFromUCI(this.ownerMap.get('rpcd', sid, 'write'));
 
 			var acl_r_new = [ ];
 			var acl_w_new = [ ];
@@ -212,16 +212,16 @@ L.ui.view.extend({
 			}
 
 			if (!this.aclEqual(acl_r, acl_r_new))
-				this.map.set('rpcd', sid, 'read', this.aclToUCI(acl_r_new));
+				this.ownerMap.set('rpcd', sid, 'read', this.aclToUCI(acl_r_new));
 
 			if (!this.aclEqual(acl_w, acl_w_new))
-				this.map.set('rpcd', sid, 'write', this.aclToUCI(acl_w_new));
+				this.ownerMap.set('rpcd', sid, 'write', this.aclToUCI(acl_w_new));
 		}
 	}),
 
 	execute: function() {
 		var self = this;
-		return L.ui.listAvailableACLs().then(function(acls) {
+		return L.ui.getAvailableACLs().then(function(acls) {
 			var m = new L.cbi.Map('rpcd', {
 				caption:     L.tr('Guest Logins'),
 				description: L.tr('Manage user accounts and permissions for accessing the LuCI ui.'),
@@ -249,7 +249,7 @@ L.ui.view.extend({
 			});
 
 			shadow.ucivalue = function(sid) {
-				var pw = this.map.get('rpcd', sid, 'password');
+				var pw = this.ownerMap.get('rpcd', sid, 'password');
 				return (pw && pw.indexOf('$p$') == 0);
 			};
 
@@ -264,8 +264,8 @@ L.ui.view.extend({
 
 			password.toggle = function(sid) {
 				var id = '#' + this.id(sid);
-				var pw = this.map.get('rpcd', sid, 'password');
-				var sh = this.section.fields.__shadow.formvalue(sid);
+				var pw = this.ownerMap.get('rpcd', sid, 'password');
+				var sh = this.ownerSection.fields.__shadow.formvalue(sid);
 
 				if (!sh && pw && pw.indexOf('$p$') == 0)
 					$(id).val('');
@@ -274,23 +274,23 @@ L.ui.view.extend({
 			};
 
 			shadow.save = password.save = function(sid) {
-				var sh = this.section.fields.__shadow.formvalue(sid);
-				var pw = this.section.fields.password.formvalue(sid);
+				var sh = this.ownerSection.fields.__shadow.formvalue(sid);
+				var pw = this.ownerSection.fields.password.formvalue(sid);
 
 				if (!sh && !pw)
 					return;
 
 				if (sh)
-					pw = '$p$' + this.section.fields.username.formvalue(sid);
+					pw = '$p$' + this.ownerSection.fields.username.formvalue(sid);
 
 				if (pw.match(/^\$[0-9p][a-z]?\$/))
 				{
-					if (pw != this.map.get('rpcd', sid, 'password'))
-						this.map.set('rpcd', sid, 'password', pw);
+					if (pw != this.ownerMap.get('rpcd', sid, 'password'))
+						this.ownerMap.set('rpcd', sid, 'password', pw);
 				}
 				else
 				{
-					var map = this.map;
+					var map = this.ownerMap;
 					return L.ui.cryptPassword(pw).then(function(crypt) {
 						map.set('rpcd', sid, 'password', crypt);
 					});

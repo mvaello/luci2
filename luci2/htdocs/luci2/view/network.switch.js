@@ -49,7 +49,7 @@ L.ui.view.extend({
 				if (val == 'u')
 				{
 					var u = false;
-					var sections = self.section.sections();
+					var sections = self.ownerSection.getUCISections();
 
 					for (var i = 0; i < sections.length; i++)
 					{
@@ -72,7 +72,7 @@ L.ui.view.extend({
 
 		ucivalue: function(sid)
 		{
-			var ports = (this.map.get('network', sid, 'ports') || '').match(/[0-9]+[tu]?/g);
+			var ports = (this.ownerMap.get('network', sid, 'ports') || '').match(/[0-9]+[tu]?/g);
 
 			if (ports)
 				for (var i = 0; i < ports.length; i++)
@@ -187,12 +187,12 @@ L.ui.view.extend({
 				});
 
 				vlans.add = function() {
-					var sections = this.sections();
+					var sections = this.getUCISections();
 					var used_vids = { };
 
 					for (var j = 0; j < sections.length; j++)
 					{
-						var v = this.map.get('network', sections[j]['.name'], 'vlan');
+						var v = this.ownerMap.get('network', sections[j]['.name'], 'vlan');
 						if (v)
 							used_vids[v] = true;
 					}
@@ -202,9 +202,9 @@ L.ui.view.extend({
 						if (used_vids[j.toString()])
 							continue;
 
-						var sid = this.map.add('network', 'switch_vlan');
-						this.map.set('network', sid, 'device', this.options.swname);
-						this.map.set('network', sid, 'vlan', j);
+						var sid = this.ownerMap.add('network', 'switch_vlan');
+						this.ownerMap.set('network', sid, 'device', this.options.swname);
+						this.ownerMap.set('network', sid, 'vlan', j);
 						break;
 					}
 				};
@@ -236,7 +236,7 @@ L.ui.view.extend({
 				var vo = vlans.option(L.cbi.InputValue, vid_opt, {
 					caption:     L.tr('VLAN ID'),
 					datatype:    function(val) {
-						var sections = vlans.sections();
+						var sections = vlans.getUCISections();
 						var used_vids = { };
 
 						for (var j = 0; j < sections.length; j++)
@@ -264,16 +264,16 @@ L.ui.view.extend({
 				});
 
 				vo.ucivalue = function(sid) {
-					var id = this.map.get('network', sid, vid_opt);
+					var id = this.ownerMap.get('network', sid, vid_opt);
 
 					if (isNaN(parseInt(id)))
-						id = this.map.get('network', sid, 'vlan');
+						id = this.ownerMap.get('network', sid, 'vlan');
 
 					return id;
 				};
 
 				vo.save = function(sid) {
-					var old_ports = this.map.get('network', sid, 'ports');
+					var old_ports = this.ownerMap.get('network', sid, 'ports');
 					var new_ports = '';
 
 					for (var j = 0; j < port_opts.length; j++)
@@ -286,13 +286,13 @@ L.ui.view.extend({
 					}
 
 					if (new_ports != old_ports)
-						this.map.set('network', sid, 'ports', new_ports);
+						this.ownerMap.set('network', sid, 'ports', new_ports);
 
 					if (v4k_opt)
 					{
-						var s = sw.sections();
+						var s = sw.getUCISections();
 						for (var j = 0; j < s.length; j++)
-							this.map.set('network', s[j]['.name'], v4k_opt, '1');
+							this.ownerMap.set('network', s[j]['.name'], v4k_opt, '1');
 					}
 
 					this.callSuper('save', sid);
