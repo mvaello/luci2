@@ -1918,7 +1918,7 @@ function LuCI2()
 						var ifcs = self.rpcCache.wifistate[s.device].interfaces;
 						for (var ifc in ifcs)
 						{
-							if (ifcs[ifc].section == sid)
+							if (ifcs[ifc].section == sid && ifcs[ifc].ifname)
 							{
 								ifname = ifcs[ifc].ifname;
 								break;
