@@ -9,6 +9,12 @@
         "view": "network/interfaces",
         "index": 10
     },
+    "network/wireless": {
+        "title": "Wireless",
+        "acls": [ "network" ],
+        "view": "network/wireless",
+        "index": 20
+    },
     "network/switch": {
         "title": "Switch",
         "acls": [ "network" ],
