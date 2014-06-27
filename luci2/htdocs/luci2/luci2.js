@@ -974,7 +974,7 @@ function LuCI2()
 		add: function(conf, type, name)
 		{
 			var n = this.state.creates;
-			var sid = this.createSID(conf);
+			var sid = name || this.createSID(conf);
 
 			if (!n[conf])
 				n[conf] = { };
