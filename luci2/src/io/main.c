@@ -299,7 +299,7 @@ failure(int e, const char *message)
 {
 	printf("Status: 500 Internal Server failure\r\n");
 	printf("Content-Type: text/plain\r\n\r\n");
-	printf(message);
+	printf("%s", message);
 
 	if (e)
 		printf(": %s", strerror(e));
